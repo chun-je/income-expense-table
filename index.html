@@ -95,7 +95,7 @@ table{border-collapse:collapse;width:100%;min-width:960px;font-size:15px}
 th{background:var(--soft);font-weight:700;font-size:14px;padding:10px 8px;border-bottom:2px solid var(--ink);text-align:center;white-space:nowrap}
 td{border-bottom:1px solid var(--line);padding:4px 8px;vertical-align:middle}
 td.n{text-align:right;font-family:var(--num);white-space:nowrap}
-td.c{text-align:center}
+td.c{text-align:center;white-space:nowrap}
 td.nm{font-weight:700;white-space:nowrap}
 td.ds{font-size:13px;color:var(--mute)}
 td.in{background:var(--edit);padding:0}
@@ -169,7 +169,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
   <div class="bars"><h2>항목별 예산 소진율</h2><div id="bars"></div><div class="legend">점선 = 예산 100% · 붉은 막대 = 예산초과</div></div>
 </section>
 <section class="band"><div class="wrap">
-  <div class="scroll"><table><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율</th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
+  <div class="scroll"><table><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율<br><small style="font-weight:400">월평균소득 기준</small></th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
   <div class="tools"><button id="addCat">+ 항목 추가</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요.</span></div>
 </div></section>
 <section class="band" id="yearly" hidden><div class="wrap mlist"><h2 id="yTitle"></h2><div id="mlist"></div></div></section>
@@ -240,7 +240,7 @@ function calc(P){
   const income=keys.reduce((a,k)=>a+incOf(k,P),0);
   const base=avg()*keys.length; // 예산 기준: 월평균소득 × 기간 수 (매월 같은 예산)
   const spent={};for(const k of keys)for(const e of P[k]||[])if(e.type==='out')spent[e.cat]=(spent[e.cat]||0)+e.amt;
-  const rows=S.cats.map(c=>{const actual=spent[c.id]||0;const budget=Math.round(base*c.ratio/100);return{c,actual,budget,diff:budget-actual,ar:income?actual/income*100:0}});
+  const rows=S.cats.map(c=>{const actual=spent[c.id]||0;const budget=Math.round(base*c.ratio/100);return{c,actual,budget,diff:budget-actual,ar:base?actual/base*100:0}});
   const ratioSum=S.cats.reduce((a,c)=>a+(+c.ratio||0),0),bSum=rows.reduce((a,r)=>a+r.budget,0),eSum=rows.reduce((a,r)=>a+r.actual,0);
   return{keys,income,base,rows,bSum,eSum,savRatio:100-ratioSum,savBudget:base-bSum,savActual:income-eSum,rate:income?(income-eSum)/income*100:0,rateAvg:base?(income-eSum)/base*100:0};
 }
@@ -319,8 +319,8 @@ function update(P){
   $('recSav').textContent=savRec()+'%';
   $('sR').textContent=pct(R.savRatio);$('sR').style.color=R.savRatio<savRec()?'var(--red)':'';
   $('sB').textContent=won(R.savBudget);$('sA').textContent=won(R.savActual);
-  $('sD').textContent=(R.savBudget-R.savActual<0?'−':'')+won(Math.abs(R.savBudget-R.savActual));
-  $('sP').innerHTML=R.income?`${pct(R.rate)}<small>월평균 기준 ${pct(R.rateAvg)}</small>`:'-';
+  {const g=R.savActual-R.savBudget,el=$('sD');el.textContent=(g<0?'−':'+')+won(Math.abs(g));el.style.color=g<0?'var(--red)':'';el.title=g<0?'목표 저축액보다 부족한 금액':'목표 저축액을 넘은 금액'}
+  $('sP').innerHTML=R.income?`${pct(R.rateAvg)}<small>실수입 기준 ${pct(R.rate)}</small>`:'-';
   $('sF').innerHTML=R.income?badge('실수입',hitInc)+badge('월평균',hitAvg):'';
   $('tR').textContent=pct(100);$('tB').textContent=won(R.base);$('tA').textContent=won(R.income);
   $('heroLabel').textContent=sum?`${S.year}년 누적 저축률 · 기록된 ${R.keys.length}개 기간`:`${label(S.view)} 저축률`;
