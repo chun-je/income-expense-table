@@ -139,6 +139,7 @@ td.txt input{font-weight:700}
 tr.sav td{border-top:2px solid var(--ink);background:var(--mintbg);color:var(--mintink);font-weight:700}
 tr.sav td.big{font:700 22px var(--num);text-align:right}
 tr.tot td{background:var(--soft);font-weight:700}
+td.pctTd input{color:var(--mute);font-weight:400}td.pctTd.own input{color:var(--ink);font-weight:700}td.pctTd input[readonly]{color:var(--ink)}
 td.rec{background:var(--soft)}td.rec input{color:var(--mute);font-weight:400}
 td.rec.mod{box-shadow:inset 3px 0 0 #2fbf71}td.rec.mod input{color:var(--ink);font-weight:700}
 tr.sav td.rec input{color:inherit}
@@ -223,7 +224,8 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
 </section>
 <section class="band"><div class="wrap">
   <div class="scroll"><table class="bt"><colgroup><col style="width:9.5%"><col style="width:16%"><col style="width:4.5%"><col style="width:3.5%"><col style="width:6%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:18%"></colgroup><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율<br><small style="font-weight:400">월평균소득 기준</small></th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
-  <div class="tools"><button id="addCat">분류 추가·이름 변경</button><button id="recReset">권장비율 기본값으로 되돌리기</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요. 관련항목과 권장비율은 직접 고칠 수 있어요(바꾼 권장비율은 왼쪽에 초록 표시).</span></div>
+  <div class="tools"><button id="addCat">분류 추가·이름 변경</button><button id="recReset">권장비율 기본값으로 되돌리기</button><button id="ratioReset">이 달 예산비율 직접 입력 취소</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요. 관련항목과 권장비율은 직접 고칠 수 있어요(바꾼 권장비율은 왼쪽에 초록 표시).</span></div>
+  <p class="note" id="ratioNote"></p>
 </div></section>
 <section class="band" id="yearly" hidden><div class="wrap mlist"><h2 id="yTitle"></h2><div id="mlist"></div></div></section>
 </div>
@@ -339,6 +341,10 @@ const savRecDef=()=>Math.max(50-kidsRec(),35);
 const savRec=()=>S.savRecUser!=null?S.savRecUser:savRecDef();
 const recModified=()=>S.savRecUser!=null||S.cats.some(c=>c.recUser!=null);
 const isSum=()=>S.view==='sum';
+function ratioSrc(k,c){const ks=Object.keys(S.months).filter(x=>x<=k&&S.months[x].ratio&&S.months[x].ratio[c.id]!=null).sort();
+  const f=ks[ks.length-1];return f?{v:+S.months[f].ratio[c.id],from:f}:{v:+c.ratio||0,from:null}}
+const ratioOf=(k,c)=>ratioSrc(k,c).v;
+const savRatioOf=k=>100-expCats().reduce((a,c)=>a+ratioOf(k,c),0);
 const viewKeys=P=>isSum()?yearKeys().filter(k=>hasData(k,P)):[S.view];
 const mainId=()=>S.accounts.some(a=>a.id===S.mainAcc)?S.mainAcc:(S.accounts.find(a=>a.kind==='cash')?.id||S.accounts[0]?.id||'');
 const accOf=e=>e.acc||mainId();
@@ -359,8 +365,8 @@ function calc(P){
   const sv=saveIds();let fromSave=0;for(const k of keys)for(const e of P[k]||[])if(e.type==='out'&&e.acc&&accKind(e.acc)==='save'&&!sv.has(e.cat))fromSave+=e.amt;
   const dl=accDelta(keys,P),byKind={cash:0,save:0,debt:0};for(const[id,v]of Object.entries(dl))byKind[accKind(id)]=(byKind[accKind(id)]||0)+v;
   const saveRows=S.cats.filter(isSave).map(c=>({c,actual:spent[c.id]||0}));
-  const rows=expCats().map(c=>{const actual=spent[c.id]||0;const budget=Math.round(base*c.ratio/100);return{c,actual,budget,diff:budget-actual,ar:base?actual/base*100:0}});
-  const ratioSum=expCats().reduce((a,c)=>a+(+c.ratio||0),0),bSum=rows.reduce((a,r)=>a+r.budget,0),eSum=rows.reduce((a,r)=>a+r.actual,0);
+  const rows=expCats().map(c=>{const actual=spent[c.id]||0;const budget=keys.reduce((a,k)=>a+Math.round(avg()*ratioOf(k,c)/100),0);return{c,actual,budget,ratio:base?budget/base*100:ratioOf(isSum()?keyOf(S.year,12):S.view,c),diff:budget-actual,ar:base?actual/base*100:0}});
+  const bSum0=rows.reduce((a,r)=>a+r.budget,0),ratioSum=base?bSum0/base*100:(isSum()?0:100-savRatioOf(S.view)),bSum=rows.reduce((a,r)=>a+r.budget,0),eSum=rows.reduce((a,r)=>a+r.actual,0);
   return{keys,income,base,rows,saveRows,fromSave,byKind,saveSum:saveRows.reduce((a,r)=>a+r.actual,0),bSum,eSum,savRatio:100-ratioSum,savBudget:base-bSum,
     savActual:income-eSum,rate:income?(income-eSum)/income*100:0,        // 실수입 기준: 실수입 − 지출
     savAvg:base-eSum,rateAvg:base?(base-eSum)/base*100:0,               // 월평균소득 기준: 목표 저축액 + 지출 절약분
@@ -437,7 +443,7 @@ function renderTable(){
     return`<tr data-id="${id}">
     <td class="nm c">${esc(c.name)}</td><td class="txt ds"><input class="dsI" value="${esc(c.desc)}" title="${esc(c.desc)}" placeholder="관련항목 입력" aria-label="${esc(c.name)} 관련항목" style="font-weight:400"></td>
     <td class="in rec"><input class="recI" id="rec-${id}" inputmode="decimal" aria-label="${esc(c.name)} 권장비율 %"></td><td class="c">이하</td>
-    <td class="in"><input class="pct" value="${c.ratio}" inputmode="decimal" aria-label="${esc(c.name)} 예산비율 %"></td>
+    <td class="in pctTd"><input class="pct" id="p-${id}" inputmode="decimal" aria-label="${esc(c.name)} 예산비율 %"${sum?' readonly tabindex="-1"':''}></td>
     <td class="n" id="b-${id}"></td><td class="n"><button class="lnk" data-go="${id}" id="a-${id}" title="가계부에서 보기"></button></td>
     <td class="n" id="d-${id}"></td><td class="n" id="r-${id}"></td><td class="c" id="f-${id}"></td>
     <td class="memo">${sum?'':`<input class="memoI" value="${esc(m.memo?.[c.id]||'')}" title="${esc(m.memo?.[c.id]||'')}" aria-label="${esc(c.name)} 특기사항">`}</td></tr>`};
@@ -454,6 +460,9 @@ function update(P){
   const R=calc(P),sum=isSum();
   $('avg').textContent=won(avg());
   for(const r of R.rows){const id=r.c.id;
+    {const pi=$('p-'+id);if(document.activeElement!==pi)pi.value=sum?(Math.round(r.ratio*10)/10):ratioOf(S.view,r.c);
+     const src=sum?null:ratioSrc(S.view,r.c),own=src&&src.from===S.view;pi.parentElement.classList.toggle('own',!!own);
+     pi.title=sum?'누적: 기간별 예산비율의 평균':own?'이 달에 직접 입력한 값':src&&src.from?`${+src.from.split('-')[1]}월 값을 이어받음`:'기본 예산비율'}
     {const ri=$('rec-'+id);if(document.activeElement!==ri)ri.value=recOf(r.c);ri.parentElement.classList.toggle('mod',r.c.recUser!=null);ri.title=r.c.recUser!=null?`기본값 ${recDef(r.c)}%에서 변경됨`:'기본 권장비율'}
     $('b-'+id).textContent=r.budget?won(r.budget):'-';
     $('a-'+id).textContent=r.actual?won(r.actual):'-';
@@ -466,7 +475,8 @@ function update(P){
   const hitInc=R.rate>=R.savRatio,hitAvg=R.rateAvg>=R.savRatio;
   const badge=(t,h)=>`<div class="${h?'ok':'flag'}">${t} ${h?'목표달성':'목표미달'}</div>`;
   {const ri=$('recSav');if(document.activeElement!==ri)ri.value=savRec();ri.parentElement.classList.toggle('mod',S.savRecUser!=null);ri.title=S.savRecUser!=null?`기본값 ${savRecDef()}%에서 변경됨`:'기본 권장비율'}
-  $('recReset').disabled=!recModified();
+  $('recReset').disabled=!recModified();$('ratioReset').disabled=sum||!S.months[S.view]?.ratio||!Object.keys(S.months[S.view].ratio).length;
+  $('ratioNote').textContent=sum?'누적 집계의 예산비율은 기간별 값의 평균이에요(읽기 전용).':`${+S.view.split('-')[1]}월 예산비율 · 진한 글씨는 이 달에 직접 입력한 값, 옅은 글씨는 이전 달(또는 기본값)에서 이어받은 값이에요. 바꾸면 이 달과 이후 달에 적용돼요.`;
   $('sR').textContent=pct(R.savRatio);$('sR').style.color=R.savRatio<savRec()?'var(--red)':'';
   $('sB').textContent=won(R.savBudget);$('sA').textContent=won(R.eSum);$('sA').title='실제 지출 합계';
   {const g=R.saved,el=$('sD');el.textContent=(g<0?'−':'+')+won(Math.abs(g));el.className='n'+(g<0?' neg':'');el.title=g<0?'예산보다 더 쓴 금액':'예산보다 덜 써서 더 저축한 금액'}
@@ -492,7 +502,7 @@ function update(P){
   if(sum){$('yTitle').textContent=`${S.year}년 기간별 저축률`;
     $('mlist').innerHTML=yearKeys().map(k=>{if(!hasData(k,P))return`<div class="bar"><span>${label(k)}</span><div class="trk"></div><span>기록 없음</span></div>`;
       const inc=incOf(k,P),ex=(P[k]||[]).filter(e=>e.type==='out'&&expCats().some(c=>c.id===e.cat)).reduce((a,e)=>a+e.amt,0),rt=inc?(inc-ex)/inc*100:0,ra=avg()?(avg()-ex)/avg()*100:0;
-      return`<div class="bar${rt<R.savRatio?' over':''}"><span>${label(k)}</span><div class="trk"><i class="${rt<R.savRatio?'over':''}" style="width:${Math.max(0,Math.min(rt,100))}%"></i></div><span>월평균 ${pct(ra)}${ra<R.savRatio?' 미달':''} · 실수입 ${pct(rt)}${rt<R.savRatio?' 미달':''}</span></div>`}).join('')}
+      const sr=savRatioOf(k);return`<div class="bar${rt<sr?' over':''}"><span>${label(k)}</span><div class="trk"><i class="${rt<sr?'over':''}" style="width:${Math.max(0,Math.min(rt,100))}%"></i></div><span>목표 ${pct(sr,0)} · 월평균 ${pct(ra)}${ra<sr?' 미달':''} · 실수입 ${pct(rt)}${rt<sr?' 미달':''}</span></div>`}).join('')}
 }
 function setupFields(){$('annual').value=won(S.annual);$('kids').value=S.kids;$('sday').value=S.sday}
 
@@ -602,18 +612,19 @@ tb.addEventListener('input',e=>{const t=e.target;
   if(t.id==='recSav'){S.savRecUser=recVal(t.value);update(idx());save();return}
   const tr=t.closest('tr');if(!tr||!tr.dataset.id)return;const id=tr.dataset.id,c=S.cats.find(x=>x.id===id);
   if(t.classList.contains('recI'))c.recUser=recVal(t.value);
-  else if(t.classList.contains('pct'))c.ratio=Math.max(0,parse(t.value));
+  else if(t.classList.contains('pct')){if(isSum())return;const m=mon(S.view);(m.ratio||(m.ratio={}))[id]=Math.max(0,parse(t.value))}
   else if(t.classList.contains('memoI'))mon(S.view).memo[id]=t.value;
   else if(t.classList.contains('dsI'))c.desc=t.value;
   const P=idx();update(P);renderLedger(P);save()});
 tb.addEventListener('focusout',e=>{const t=e.target,tr=t.closest('tr');
-  if(t.id==='recSav'||t.classList.contains('recI')){update(idx());return}if(tr&&tr.dataset.id&&t.classList.contains('pct'))t.value=S.cats.find(x=>x.id===tr.dataset.id).ratio});
+  if(t.id==='recSav'||t.classList.contains('recI')){update(idx());return}if(tr&&tr.dataset.id&&t.classList.contains('pct'))update(idx())});
 tb.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('input')){const all=[...tb.querySelectorAll('input.'+e.target.classList[0])];(all[all.indexOf(e.target)+1]||e.target).focus();e.preventDefault()}});
 tb.addEventListener('click',e=>{
   const g=e.target.closest('[data-go]');if(g){filt.cat=g.dataset.go;filt.q='';$('q').value='';location.hash='ledger'}});
 
 
 
+$('ratioReset').addEventListener('click',()=>{if(isSum())return;const m=S.months[S.view];if(m)delete m.ratio;update(idx());renderLedger(idx());save()});
 $('recReset').addEventListener('click',()=>{S.cats.forEach(c=>c.recUser=null);S.savRecUser=null;update(idx());save()});
 $('addCat').addEventListener('click',()=>{location.hash='ledger';F.type='out';openCats(true)});
 // backup
