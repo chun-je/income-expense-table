@@ -27,8 +27,14 @@ h2{font-size:20px;margin:0 0 14px}
 .sync{font-size:13px;color:var(--mute)}
 .views{display:flex;gap:0;margin-top:16px;border:2px solid var(--ink);border-radius:12px;overflow:hidden;width:max-content;max-width:100%}
 .views button{border:0;border-radius:0;font-weight:700;font-size:16px;padding:0 22px}
-.tabs{display:flex;gap:6px;padding:12px 0 4px;align-items:center}
-.tabs button{flex:none}
+.tabs{display:flex;gap:10px;padding:12px 0 4px;align-items:center}
+.yrbox{display:flex;align-items:center;flex:none}.yrbox button{padding:0 10px}
+.mgrid{flex:1;display:grid;grid-template-columns:repeat(13,minmax(0,1fr));gap:4px}
+.mgrid button{padding:0 2px;font-family:var(--num);white-space:nowrap;position:relative}
+.mgrid button.has::after{position:absolute;top:6px;right:6px;margin:0}
+.mgrid button.now{box-shadow:inset 0 -3px 0 #2fbf71}
+.range{font-size:14px;color:var(--mute);font-family:var(--num)}
+@media(max-width:760px){.tabs{flex-direction:column;align-items:stretch;gap:4px}.yrbox{justify-content:center}.mgrid{grid-template-columns:repeat(7,minmax(0,1fr))}}
 button,select{font:inherit;font-size:14px;min-height:44px;padding:0 14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;cursor:pointer}
 button:hover{border-color:var(--ink)}
 button[aria-current=true],button[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
@@ -78,8 +84,14 @@ button.ghost{border-color:transparent}
 .hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
 .mint{background:var(--mintbg);color:var(--mintink);padding:clamp(24px,4vw,48px) max(5vw,16px)}
 .mint .k{font-size:15px;font-weight:500}
-.rate{font:700 clamp(64px,10vw,120px)/1 var(--num);letter-spacing:-.04em;margin:8px 0}
-.goal{font-size:16px;font-weight:500}
+.duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:14px 0 6px}
+.duo>div{border-top:2px solid currentColor;padding-top:10px}
+.duo .t{font-size:14px;font-weight:700}
+.duo .r{font:700 clamp(44px,6.5vw,76px)/1.05 var(--num);letter-spacing:-.03em;margin:6px 0}
+.duo .g{font-size:14px;line-height:1.5}.duo .g b{font-family:var(--num)}
+.duo .st{display:inline-block;margin-top:6px;font-weight:700;font-size:14px;padding:2px 10px;border:1.5px solid currentColor;border-radius:999px}
+.calc{font:13px/1.5 var(--num);margin-top:10px}
+@media(max-width:420px){.duo{grid-template-columns:1fr}}
 .trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:22px;border-top:1px solid currentColor;padding-top:14px}
 .trio b{display:block;font:700 18px var(--num);white-space:nowrap}.trio span{font-size:13px}
 .bars{padding:clamp(24px,4vw,48px) max(5vw,16px);border-bottom:1px solid var(--line)}
@@ -134,7 +146,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
 <header class="band top"><div class="wrap">
   <div class="head"><h1>가계부 · 소득지출대비표</h1><span class="sync" id="sync">불러오는 중…</span></div>
   <div class="views" role="tablist"><button id="goLedger" role="tab">가계부</button><button id="goTable" role="tab">소득지출대비표</button></div>
-  <nav class="tabs scroll" id="tabs" aria-label="기간 선택"></nav>
+  <nav class="tabs" id="tabs" aria-label="기간 선택"></nav><div class="range" id="range"></div>
 </div></header>
 
 <main id="vLedger" class="ledger" hidden>
@@ -171,8 +183,8 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
 <section class="hero">
   <div class="mint">
     <div class="k" id="heroLabel">저축률</div>
-    <div class="rate" id="rate">0%</div>
-    <div class="goal" id="goal"></div>
+    <div class="duo" id="duo"></div>
+    <div class="calc" id="calcLine"></div>
     <div class="trio"><div><span>수입</span><b id="hInc"></b></div><div><span>지출</span><b id="hExp"></b></div><div><span>저축</span><b id="hSav"></b></div></div>
   </div>
   <div class="bars"><h2>항목별 예산 소진율</h2><div id="bars"></div><div class="legend">점선 = 예산 100% · 붉은 막대 = 예산초과</div></div>
@@ -263,10 +275,10 @@ function calc(P){
 
 function renderTabs(P){
   const cur=nowKey();
-  $('tabs').innerHTML=`<button class="ghost" data-yr="-1" aria-label="이전 연도">‹</button><span class="yr">${S.year}년</span><button class="ghost" data-yr="1" aria-label="다음 연도">›</button>`+
-    yearKeys().map(k=>`<button data-k="${k}" aria-current="${S.view===k}" class="${hasData(k,P)?'has':''}">${label(k)}${k===cur?' ·지금':''}</button>`).join('')+
-    `<button data-k="sum" aria-current="${isSum()}">${String(S.year).slice(2)}년 ${route==='table'?'누적 집계':'전체'}</button>`;
-  const a=$('tabs').querySelector('[aria-current=true]');if(a)a.scrollIntoView({block:'nearest',inline:'nearest'});
+  $('tabs').innerHTML=`<div class="yrbox"><button class="ghost" data-yr="-1" aria-label="이전 연도">‹</button><span class="yr">${S.year}</span><button class="ghost" data-yr="1" aria-label="다음 연도">›</button></div>`+
+    `<div class="mgrid">`+yearKeys().map((k,i)=>`<button data-k="${k}" aria-current="${S.view===k}" class="${hasData(k,P)?'has':''}${k===cur?' now':''}" title="${label(k)}">${i+1}월</button>`).join('')+
+    `<button data-k="sum" class="sumb" aria-current="${isSum()}">${route==='table'?'누적':'전체'}</button></div>`;
+  $('range').textContent=isSum()?`${S.year}년 ${route==='table'?'누적 집계':'전체 기록'} · ${label(keyOf(S.year,1)).split('~')[0]} ~ ${label(keyOf(S.year,12)).split('~')[1]}`:`${+S.view.split('-')[1]}월 기간 · ${label(S.view).replace('~',' ~ ')}${S.view===cur?' (지금)':''}`;
 }
 
 /* ---------- ledger ---------- */
@@ -345,13 +357,11 @@ function update(P){
   $('sP').innerHTML=R.income?`${pct(R.rateAvg)}<small>실수입 기준 ${pct(R.rate)}</small>`:'-';
   $('sF').innerHTML=R.income?badge('월평균',hitAvg)+badge('실수입',hitInc):'';
   $('tR').textContent=pct(100);$('tB').textContent=won(R.base);$('tA').textContent=won(R.income);$('tA').title='실수입 = 실제 지출 + 실제 저축';
-  $('heroLabel').textContent=sum?`${S.year}년 누적 저축률 · 기록된 ${R.keys.length}개 기간`:`${label(S.view)} 저축률`;
-  $('rate').textContent=R.income?pct(R.rate):'—';
-  {const gap=R.income-R.base;
-  $('goal').innerHTML=R.income?`목표 저축비율 ${pct(R.savRatio,0)} 이상 (목표 저축액 ${won(R.savBudget)}원)
-    <div class="gl"><span>월평균소득 기준 <b>${pct(R.rateAvg)}</b> · ${won(R.savAvg)}원</span><span>${hitAvg?'목표달성':'목표미달'}</span></div>
-    <div class="gl"><span>실수입 기준 <b>${pct(R.rate)}</b> · ${won(R.savActual)}원</span><span>${hitInc?'목표달성':'목표미달'}</span></div>
-    <div class="gl calc">목표 저축 ${won(R.savBudget)} ${R.saved<0?'−':'+'} 지출 ${R.saved<0?'초과':'절약'} ${won(Math.abs(R.saved))} ${gap<0?'−':'+'} 수입 ${gap<0?'부족':'초과'} ${won(Math.abs(gap))} = 실제 저축 ${won(R.savActual)}</div>`:'기록된 기간이 없습니다';}
+  $('heroLabel').textContent=sum?`${S.year}년 누적 저축률 · 기록된 ${R.keys.length}개 기간`:`${label(S.view)} 저축률 — 두 기준 비교`;
+  {const gap=R.income-R.base,incGoal=Math.round(R.income*R.savRatio/100);
+  const blk=(t,r,goal,got,base,h)=>`<div><div class="t">${t}</div><div class="r">${pct(r)}</div><div class="g">저축 <b>${won(got)}</b>원 ÷ ${base}<br>목표 ${pct(R.savRatio,0)} 이상 = <b>${won(goal)}</b>원</div><span class="st">${h?'목표달성':'목표미달 · '+won(goal-got)+'원 부족'}</span></div>`;
+  $('duo').innerHTML=R.income?blk('월평균소득 기준',R.rateAvg,R.savBudget,R.savAvg,'월평균소득 '+won(R.base),hitAvg)+blk('실수입 기준',R.rate,incGoal,R.savActual,'실수입 '+won(R.income),hitInc):'<p>기록된 기간이 없습니다.</p>';
+  $('calcLine').textContent=R.income?`실제 저축 ${won(R.savActual)} = 목표 저축 ${won(R.savBudget)} ${R.saved<0?'−':'+'} 지출 ${R.saved<0?'초과':'절약'} ${won(Math.abs(R.saved))} ${gap<0?'−':'+'} 수입 ${gap<0?'부족':'초과'} ${won(Math.abs(gap))}`:'';}
   $('hInc').textContent=won(R.income);$('hExp').textContent=won(R.eSum);$('hSav').textContent=won(R.savActual);
   const br=R.rows.filter(r=>r.budget||r.actual);
   $('bars').innerHTML=br.length?br.map(r=>{const u=r.budget?r.actual/r.budget:(r.actual?1.5:0),over=r.actual>r.budget;
