@@ -165,7 +165,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
   <div class="bars"><h2>항목별 예산 소진율</h2><div id="bars"></div><div class="legend">점선 = 예산 100% · 붉은 막대 = 예산초과</div></div>
 </section>
 <section class="band"><div class="wrap">
-  <div class="scroll"><table><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액</th><th>실제금액</th><th>차액</th><th>실제비율</th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
+  <div class="scroll"><table><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율</th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
   <div class="tools"><button id="addCat">+ 항목 추가</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요.</span></div>
 </div></section>
 <section class="band" id="yearly" hidden><div class="wrap mlist"><h2 id="yTitle"></h2><div id="mlist"></div></div></section>
@@ -234,10 +234,11 @@ let route='ledger';
 function calc(P){
   const keys=viewKeys(P);
   const income=keys.reduce((a,k)=>a+incOf(k,P),0);
+  const base=avg()*keys.length; // 예산 기준: 월평균소득 × 기간 수 (매월 같은 예산)
   const spent={};for(const k of keys)for(const e of P[k]||[])if(e.type==='out')spent[e.cat]=(spent[e.cat]||0)+e.amt;
-  const rows=S.cats.map(c=>{const actual=spent[c.id]||0;const budget=Math.round(income*c.ratio/100);return{c,actual,budget,diff:budget-actual,ar:income?actual/income*100:0}});
+  const rows=S.cats.map(c=>{const actual=spent[c.id]||0;const budget=Math.round(base*c.ratio/100);return{c,actual,budget,diff:budget-actual,ar:income?actual/income*100:0}});
   const ratioSum=S.cats.reduce((a,c)=>a+(+c.ratio||0),0),bSum=rows.reduce((a,r)=>a+r.budget,0),eSum=rows.reduce((a,r)=>a+r.actual,0);
-  return{keys,income,rows,bSum,eSum,savRatio:100-ratioSum,savBudget:income-bSum,savActual:income-eSum,rate:income?(income-eSum)/income*100:0};
+  return{keys,income,base,rows,bSum,eSum,savRatio:100-ratioSum,savBudget:base-bSum,savActual:income-eSum,rate:income?(income-eSum)/income*100:0};
 }
 
 function renderTabs(P){
@@ -267,7 +268,7 @@ function renderLedger(P){
   const inc=R.keys.reduce((a,k)=>a+ledgerInc(k,P),0);
   $('lsum').innerHTML=`<div><span>수입</span><b style="color:var(--grn)">${won(inc)}</b></div><div><span>지출</span><b>${won(R.eSum)}</b></div><div><span>남은 예산</span><b class="${R.bSum-R.eSum<0?'neg':''}">${won(R.bSum-R.eSum)}</b></div>`;
   const u=R.bSum?R.eSum/R.bSum:0;$('usageBar').style.width=Math.min(u,1)*100+'%';$('usageBar').className=u>1?'over':'';
-  $('usageTxt').textContent=R.bSum?`지출 예산 ${won(R.bSum)}원 중 ${Math.round(u*100)}% 사용${inc?'':' · 가계부에 수입이 없어 월평균소득 기준으로 예산을 잡았어요'}`:'예산이 없습니다';
+  $('usageTxt').textContent=R.bSum?`지출 예산 ${won(R.bSum)}원 중 ${Math.round(u*100)}% 사용 · 예산은 월평균소득 ${won(avg())}원 기준`:'예산이 없습니다';
   const cats=[['','전체 분류'],...S.cats.map(c=>[c.id,c.name]),...INC.map(n=>['in:'+n,n+' (수입)'])];
   if(!cats.some(c=>c[0]===filt.cat))filt.cat='';
   $('qCat').innerHTML=cats.map(c=>`<option value="${esc(c[0])}"${c[0]===filt.cat?' selected':''}>${esc(c[1])}</option>`).join('');
@@ -309,17 +310,17 @@ function update(P){
     $('r-'+id).textContent=pct(r.ar);
     $('f-'+id).innerHTML=r.diff<0?'<span class="flag">예산초과!</span>':'';
   }
-  const hit=R.rate>=R.savRatio;
+  const hit=R.savActual>=R.savBudget;
   $('recSav').textContent=savRec()+'%';
   $('sR').textContent=pct(R.savRatio);$('sR').style.color=R.savRatio<savRec()?'var(--red)':'';
   $('sB').textContent=won(R.savBudget);$('sA').textContent=won(R.savActual);
   $('sD').textContent=(R.savBudget-R.savActual<0?'−':'')+won(Math.abs(R.savBudget-R.savActual));
   $('sP').textContent=pct(R.rate);
   $('sF').innerHTML=R.income?(hit?'목표달성':'<span class="flag">목표미달</span>'):'';
-  $('tR').textContent=pct(100);$('tB').textContent=won(R.income);$('tA').textContent=won(R.income);
+  $('tR').textContent=pct(100);$('tB').textContent=won(R.base);$('tA').textContent=won(R.income);
   $('heroLabel').textContent=sum?`${S.year}년 누적 저축률 · 기록된 ${R.keys.length}개 기간`:`${label(S.view)} 저축률`;
   $('rate').textContent=R.income?pct(R.rate):'—';
-  $('goal').textContent=R.income?`목표 ${pct(R.savRatio,0)} 이상 · ${hit?'목표달성':'목표까지 '+won(R.income*R.savRatio/100-R.savActual)+'원'}`:'기록된 기간이 없습니다';
+  $('goal').textContent=R.income?`목표 저축액 ${won(R.savBudget)}원 · ${hit?'목표달성':'목표까지 '+won(R.savBudget-R.savActual)+'원'}`:'기록된 기간이 없습니다';
   $('hInc').textContent=won(R.income);$('hExp').textContent=won(R.eSum);$('hSav').textContent=won(R.savActual);
   const br=R.rows.filter(r=>r.budget||r.actual);
   $('bars').innerHTML=br.length?br.map(r=>{const u=r.budget?r.actual/r.budget:(r.actual?1.5:0),over=r.actual>r.budget;
