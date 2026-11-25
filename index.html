@@ -173,7 +173,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
     <div class="lrow"><span class="lab">분류</span><button type="button" class="mini" id="catEdit" aria-expanded="false">분류 편집</button></div><div class="chips" id="chips"></div>
     <div class="catPanel" id="catPanel" hidden><p class="lab">이름을 고치면 소득지출대비표의 구분에도 바로 반영돼요. 묶음을 '저축'으로 두면 지출이 아닌 저축으로 집계돼요(대출 원금, 적금 이체 등).</p><div id="catRows"></div><div class="fbtn"><button type="button" id="catAdd">+ 분류 추가</button><button type="button" id="catDone">완료</button></div><p class="fmsg" id="catMsg" aria-live="polite"></p></div>
     <div class="two"><div><label for="fDate" class="lab">날짜</label><input id="fDate" type="date"></div>
-      <div><label for="fPay" class="lab">결제수단</label><select id="fPay"><option>카드</option><option>현금</option><option>계좌이체</option><option value="">기타</option></select></div></div>
+      <div><label for="fPay" class="lab">결제수단</label><select id="fPay"><option>카드</option><option>현금</option><option>계좌이체</option><option>저축계좌</option><option value="">기타</option></select></div></div>
     <label for="fMemo" class="lab">내용</label><input id="fMemo" placeholder="예: 이마트 장보기">
     <div class="fbtn"><button id="fSave" class="primary" type="submit">추가</button><button id="fCancel" type="button" hidden>취소</button><button id="fDel" type="button" hidden>삭제</button></div>
     <p class="fmsg" id="fMsg" aria-live="polite">금액은 32000+15000처럼 더하기로도 입력됩니다.</p>
@@ -183,7 +183,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
     <h2 id="lTitle"></h2>
     <div class="lsum" id="lsum"></div>
     <div class="usage"><i id="usageBar"></i></div><div class="note" id="usageTxt"></div>
-    <div class="filters"><select id="qCat" aria-label="분류 필터"></select><input id="q" type="search" placeholder="내용 검색" aria-label="내용 검색"></div>
+    <div class="filters"><select id="qCat" aria-label="분류 필터"></select><input id="q" type="search" placeholder="내용·결제수단 검색" aria-label="내용 검색"></div>
     <div id="list"></div>
     <p class="note" id="sampleNote" hidden>26.10.25~26.11.24 기간과 이번 기간에 예시 기록이 들어 있습니다. <button class="ghost" id="clearSample">예시 지우기</button></p>
   </div>
@@ -311,10 +311,11 @@ function calc(P){
   const income=keys.reduce((a,k)=>a+incOf(k,P),0);
   const base=avg()*keys.length; // 예산 기준: 월평균소득 × 기간 수 (매월 같은 예산)
   const spent={};for(const k of keys)for(const e of P[k]||[])if(e.type==='out')spent[e.cat]=(spent[e.cat]||0)+e.amt;
+  const sv=saveIds();let fromSave=0;for(const k of keys)for(const e of P[k]||[])if(e.type==='out'&&e.pay==='저축계좌'&&!sv.has(e.cat))fromSave+=e.amt;
   const saveRows=S.cats.filter(isSave).map(c=>({c,actual:spent[c.id]||0}));
   const rows=expCats().map(c=>{const actual=spent[c.id]||0;const budget=Math.round(base*c.ratio/100);return{c,actual,budget,diff:budget-actual,ar:base?actual/base*100:0}});
   const ratioSum=expCats().reduce((a,c)=>a+(+c.ratio||0),0),bSum=rows.reduce((a,r)=>a+r.budget,0),eSum=rows.reduce((a,r)=>a+r.actual,0);
-  return{keys,income,base,rows,saveRows,saveSum:saveRows.reduce((a,r)=>a+r.actual,0),bSum,eSum,savRatio:100-ratioSum,savBudget:base-bSum,
+  return{keys,income,base,rows,saveRows,fromSave,saveSum:saveRows.reduce((a,r)=>a+r.actual,0),bSum,eSum,savRatio:100-ratioSum,savBudget:base-bSum,
     savActual:income-eSum,rate:income?(income-eSum)/income*100:0,        // 실수입 기준: 실수입 − 지출
     savAvg:base-eSum,rateAvg:base?(base-eSum)/base*100:0,               // 월평균소득 기준: 목표 저축액 + 지출 절약분
     saved:bSum-eSum};                                                    // 지출 절약분(예산 − 실제지출)
@@ -349,12 +350,12 @@ function renderLedger(P){
   const inc=R.keys.reduce((a,k)=>a+ledgerInc(k,P),0);
   $('lsum').innerHTML=`<div><span>수입</span><b style="color:var(--grn)">${won(inc)}</b></div><div><span>지출</span><b>${won(R.eSum)}</b></div><div><span>남은 예산</span><b class="${R.bSum-R.eSum<0?'neg':''}">${won(R.bSum-R.eSum)}</b></div>`;
   const u=R.bSum?R.eSum/R.bSum:0;$('usageBar').style.width=Math.min(u,1)*100+'%';$('usageBar').className=u>1?'over':'';
-  $('usageTxt').textContent=(R.bSum?`지출 예산 ${won(R.bSum)}원 중 ${Math.round(u*100)}% 사용 · 예산은 월평균소득 ${won(avg())}원 기준`:'예산이 없습니다')+(R.saveSum?` · 저축 묶음(원금상환 등) ${won(R.saveSum)}원은 지출에서 제외`:'');
+  $('usageTxt').textContent=(R.bSum?`지출 예산 ${won(R.bSum)}원 중 ${Math.round(u*100)}% 사용 · 예산은 월평균소득 ${won(avg())}원 기준`:'예산이 없습니다')+(R.saveSum?` · 저축 묶음(원금상환 등) ${won(R.saveSum)}원은 지출에서 제외`:'')+(R.fromSave?` · 이 중 저축계좌에서 나간 지출 ${won(R.fromSave)}원`:'');
   const cats=[['','전체 분류'],...GROUPS.flatMap(g=>S.cats.filter(c=>c.group===g).map(c=>[c.id,c.name])),...INC.map(n=>['in:'+n,n+' (수입)'])];
   if(!cats.some(c=>c[0]===filt.cat))filt.cat='';
   $('qCat').innerHTML=cats.map(c=>`<option value="${esc(c[0])}"${c[0]===filt.cat?' selected':''}>${esc(c[1])}</option>`).join('');
   const keys=isSum()?yearKeys():[S.view];const q=filt.q.trim().toLowerCase();
-  let list=keys.flatMap(k=>P[k]||[]).filter(e=>!filt.cat||(filt.cat.startsWith('in:')?e.type==='in'&&e.cat===filt.cat.slice(3):e.type==='out'&&e.cat===filt.cat)).filter(e=>!q||(e.memo||'').toLowerCase().includes(q)||catName(e).toLowerCase().includes(q));
+  let list=keys.flatMap(k=>P[k]||[]).filter(e=>!filt.cat||(filt.cat.startsWith('in:')?e.type==='in'&&e.cat===filt.cat.slice(3):e.type==='out'&&e.cat===filt.cat)).filter(e=>!q||(e.memo||'').toLowerCase().includes(q)||catName(e).toLowerCase().includes(q)||(e.pay||'').toLowerCase().includes(q));
   list.sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:(b.ts||0)-(a.ts||0));
   if(!list.length){$('list').innerHTML=`<p class="empty">${filt.cat||q?'조건에 맞는 기록이 없습니다.':'이 기간에 기록이 없습니다. 첫 지출을 추가해 보세요.'}</p>`}
   else{let html='',day='';
@@ -414,7 +415,7 @@ function update(P){
   {const gap=R.income-R.base,incGoal=Math.round(R.income*R.savRatio/100);
   const blk=(t,r,goal,got,base,h)=>`<div><div class="t">${t}</div><div class="r">${pct(r)}</div><div class="g">저축 <b>${won(got)}</b>원 ÷ ${base}<br>목표 ${pct(R.savRatio,0)} 이상 = <b>${won(goal)}</b>원</div><span class="st">${h?'목표달성':'목표미달 · '+won(goal-got)+'원 부족'}</span></div>`;
   $('duo').innerHTML=R.income?blk('월평균소득 기준',R.rateAvg,R.savBudget,R.savAvg,'월평균소득 '+won(R.base),hitAvg)+blk('실수입 기준',R.rate,incGoal,R.savActual,'실수입 '+won(R.income),hitInc):'<p>기록된 기간이 없습니다.</p>';
-  $('calcLine').textContent=R.income?`실제 저축 ${won(R.savActual)} = 목표 저축 ${won(R.savBudget)} ${R.saved<0?'−':'+'} 지출 ${R.saved<0?'초과':'절약'} ${won(Math.abs(R.saved))} ${gap<0?'−':'+'} 수입 ${gap<0?'부족':'초과'} ${won(Math.abs(gap))}`:'';}
+  $('calcLine').textContent=R.income?`실제 저축 ${won(R.savActual)} = 목표 저축 ${won(R.savBudget)} ${R.saved<0?'−':'+'} 지출 ${R.saved<0?'초과':'절약'} ${won(Math.abs(R.saved))} ${gap<0?'−':'+'} 수입 ${gap<0?'부족':'초과'} ${won(Math.abs(gap))}${R.fromSave?` · 지출 중 ${won(R.fromSave)}원은 저축계좌에서 나감`:''}`:'';}
   $('hInc').textContent=won(R.income);$('hExp').textContent=won(R.eSum);$('hSav').textContent=won(R.savActual);
   const br=R.rows.filter(r=>r.budget||r.actual);
   $('bars').innerHTML=br.length?br.map(r=>{const u=r.budget?r.actual/r.budget:(r.actual?1.5:0),over=r.actual>r.budget;
