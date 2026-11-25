@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>소득지출대비표</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;700&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* VOICE: 가계부 담당자의 깔끔한 장부 — 차분하고 정확하게
+   IDEA: 엑셀 소득지출대비표를 그대로 옮긴, 손으로 채우는 월별 장부
+   PICTURE: 민트 필드 위 큰 저축률 + 항목별 예산 소진 막대
+   COLOUR and TYPE: 흑백 + 민트 한 면, 초과는 버밀리언 / IBM Plex Sans KR + Space Grotesk 숫자
+   LAYOUT: 상단 기간 탭 → 기본설정 → 결과 필드 → 표 → 월별 추이 */
+:root{color-scheme:light dark;--bg:light-dark(#fff,#0b0c0c);--ink:light-dark(#111,#f1f2ef);--mute:light-dark(#62645f,#9a9d98);--line:light-dark(#e3e4df,#262927);--soft:light-dark(#f5f6f2,#141615);--edit:light-dark(#ecfbf2,#10201a);--mintbg:light-dark(#b8f5d0,#0f1c15);--mintink:light-dark(#0b0c0c,#b8f5d0);--red:light-dark(#d7301c,#ff6f59);--num:'Space Grotesk','IBM Plex Sans KR',sans-serif}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 'IBM Plex Sans KR',system-ui,sans-serif;overflow-x:clip}
+.band{padding:clamp(20px,3vw,40px) max(5vw,16px)}
+.wrap{max-width:1240px;margin:0 auto}
+.scroll{overflow-x:auto}
+h1{font-size:clamp(30px,4vw,44px);line-height:1.05;margin:0;letter-spacing:-.02em;text-wrap:balance}
+h2{font-size:20px;margin:0 0 14px}
+.top{padding-bottom:8px}
+.head{display:flex;flex-wrap:wrap;align-items:end;justify-content:space-between;gap:12px}
+.sync{font-size:13px;color:var(--mute)}
+.tabs{display:flex;gap:6px;padding:14px 0 4px;align-items:center}
+.tabs button{flex:none}
+button{font:inherit;font-size:14px;min-height:44px;padding:0 14px;border:1px solid var(--line);background:var(--bg);color:var(--ink);border-radius:8px;cursor:pointer}
+button:hover{border-color:var(--ink)}
+button[aria-current=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.has::after{content:'';display:inline-block;width:6px;height:6px;border-radius:50%;background:#2fbf71;margin-left:6px;vertical-align:middle}
+button.ghost{border-color:transparent}
+:focus-visible{outline:3px solid #2fbf71;outline-offset:2px}
+.yr{font-family:var(--num);font-weight:700;padding:0 6px;flex:none}
+.setup{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;padding-top:12px}
+.fld{background:var(--soft);border-radius:10px;padding:10px 14px}
+.fld label{display:block;font-size:13px;color:var(--mute)}
+.fld input{width:100%;border:0;background:transparent;color:var(--ink);font:700 20px var(--num);padding:2px 0;text-align:right}
+.fld output{display:block;font:700 20px var(--num);text-align:right}
+.fld.ed{background:var(--edit)}
+.fld small{display:block;font-size:13px;color:var(--mute);text-align:right}
+.hero{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr)}
+.mint{background:var(--mintbg);color:var(--mintink);padding:clamp(24px,4vw,48px) max(5vw,16px)}
+.mint .k{font-size:15px;font-weight:500}
+.rate{font:700 clamp(64px,10vw,120px)/1 var(--num);letter-spacing:-.04em;margin:8px 0}
+.goal{font-size:16px;font-weight:500}
+.trio{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-top:22px;border-top:1px solid currentColor;padding-top:14px}
+.trio b{display:block;font:700 18px var(--num);white-space:nowrap}
+.trio span{font-size:13px}
+.bars{padding:clamp(24px,4vw,48px) max(5vw,16px);border-bottom:1px solid var(--line)}
+.bar{display:grid;grid-template-columns:6.5em minmax(0,1fr) 9.5em;gap:10px;align-items:center;font-size:14px;padding:3px 0}
+.trk{position:relative;height:12px;background:var(--soft);border-radius:3px}
+.trk i{position:absolute;inset:0 auto 0 0;background:var(--ink);border-radius:3px}
+.trk i.over{background:var(--red)}
+.trk em{position:absolute;left:66.6%;top:-4px;bottom:-4px;border-left:2px dashed var(--mute)}
+.bar span:last-child{text-align:right;font-family:var(--num);white-space:nowrap;color:var(--mute)}
+.bar.over span{color:var(--red)}
+.legend{font-size:13px;color:var(--mute);margin-top:10px}
+table{border-collapse:collapse;width:100%;min-width:960px;font-size:15px}
+th{background:var(--soft);font-weight:700;font-size:14px;padding:10px 8px;border-bottom:2px solid var(--ink);text-align:center;white-space:nowrap}
+td{border-bottom:1px solid var(--line);padding:4px 8px;vertical-align:middle}
+td.n{text-align:right;font-family:var(--num);white-space:nowrap}
+td.c{text-align:center}
+td.nm{font-weight:700;white-space:nowrap}
+td.ds{font-size:13px;color:var(--mute)}
+td.in{background:var(--edit);padding:0}
+td.in input{width:100%;min-height:42px;border:0;background:transparent;color:var(--ink);font:500 16px var(--num);text-align:right;padding:0 10px}
+td.memo input,td.txt input{width:100%;min-height:40px;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);font:inherit;font-size:14px}
+td.txt input{font-weight:700}
+.neg{color:var(--red)}
+.flag{color:var(--red);font-weight:700;font-size:13px;white-space:nowrap}
+.ok{color:#1f9d5a;font-weight:700;font-size:13px}
+tr.sav td{border-top:2px solid var(--ink);background:var(--mintbg);color:var(--mintink);font-weight:700}
+tr.sav td.big{font:700 22px var(--num);text-align:right}
+tr.tot td{background:var(--soft);font-weight:700}
+.del{min-height:32px;padding:0 8px;font-size:13px;color:var(--mute)}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;align-items:center}
+.note{font-size:13px;color:var(--mute)}
+.mlist .bar{grid-template-columns:9em minmax(0,1fr) 12em}
+.mlist .trk em{display:none}
+details{border-top:1px solid var(--line);padding-top:14px}
+summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
+textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;background:var(--soft);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:10px}
+button.warn{color:var(--red)}
+@media(max-width:760px){.hero{grid-template-columns:1fr}.bar{grid-template-columns:5.5em minmax(0,1fr) 7.5em;font-size:13px}.mlist .bar{grid-template-columns:7.5em minmax(0,1fr) 7em}}
+@media(prefers-reduced-motion:no-preference){.trk i{transition:width .35s ease}}
+</style>
+</head>
+<body>
+<header class="band top"><div class="wrap">
+  <div class="head"><h1>소득지출대비표</h1><span class="sync" id="sync">불러오는 중…</span></div>
+  <nav class="tabs scroll" id="tabs" aria-label="기간 선택"></nav>
+</div></header>
+
+<section class="band" style="padding-top:0"><div class="wrap setup">
+  <div class="fld ed"><label for="annual">부부 세후 연소득 (원)</label><input id="annual" inputmode="numeric"></div>
+  <div class="fld ed"><label for="kids">자녀 수</label><input id="kids" type="number" min="0" max="9"></div>
+  <div class="fld"><label>월평균소득</label><output id="avg"></output></div>
+  <div class="fld ed" id="mincBox"><label for="minc">이번 기간 실수입 (원)</label><input id="minc" inputmode="numeric"><small id="mincHint">비워두면 월평균소득 적용</small></div>
+  <div class="fld ed"><label for="sday">기간 시작일 (급여일)</label><input id="sday" type="number" min="1" max="28"></div>
+</div></section>
+
+<section class="hero">
+  <div class="mint">
+    <div class="k" id="heroLabel">저축률</div>
+    <div class="rate" id="rate">0%</div>
+    <div class="goal" id="goal"></div>
+    <div class="trio"><div><span>수입</span><b id="hInc"></b></div><div><span>지출</span><b id="hExp"></b></div><div><span>저축</span><b id="hSav"></b></div></div>
+  </div>
+  <div class="bars"><h2>항목별 예산 소진율</h2><div id="bars"></div><div class="legend">점선 = 예산 100% · 붉은 막대 = 예산초과</div></div>
+</section>
+
+<section class="band"><div class="wrap">
+  <div class="scroll"><table id="tbl"><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액</th><th>실제금액</th><th>차액</th><th>실제비율</th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
+  <div class="tools"><button id="addCat">+ 항목 추가</button><span class="note" id="tip">연두색 칸에 입력하세요. 실제금액은 <b>32000+15000</b>처럼 더하기로도 입력됩니다.</span></div>
+  <p class="note" id="sampleNote" hidden>26.9.25~26.10.24, 26.10.25~26.11.24 기간에 예시 금액이 들어 있습니다. <button class="ghost" id="clearSample">예시 지우기</button></p>
+</div></section>
+
+<section class="band" id="yearly" hidden><div class="wrap mlist"><h2 id="yTitle">기간별 저축률</h2><div id="mlist"></div></div></section>
+
+<section class="band"><div class="wrap">
+  <details><summary>백업 · 복원 · 초기화</summary>
+    <p class="note">입력한 데이터는 이 기기의 브라우저에 자동 저장됩니다. 브라우저 기록을 지우거나 다른 기기로 옮길 때는 복사해 두었다가 붙여넣어 복원하세요.</p>
+    <textarea id="bk" aria-label="백업 데이터"></textarea>
+    <div class="tools"><button id="copy">현재 데이터 복사</button><button id="apply">붙여넣은 데이터 적용</button><button class="warn" id="reset">전체 초기화</button><span class="note" id="bkMsg"></span></div>
+  </details>
+</div></section>
+
+<script>
+{
+const LS='income-expense-v1';
+const DEF=[['house','주거비','대출이자, 월세 등 (원금상환 제외)',4,3],['mgmt','관리비','관리비, 가스비 등',5,6],['daily','생필품비','생활용품 등',4,3],['kids','양육비','도우미, 병원, 학교, 학원 등',0,0],['fashion','패션/미용비','미용, 의류, 신발 등',1,1],['grocery','식재료비','식재료 등',5,5],['dining','외식비','음료/간식, 배달음식 포함',4,4],['leisure','여가비','취미, 문화, 여행, 운동 등',3,3],['allow','개인용돈','부부 개인용돈',4,4],['transport','교통비','대중교통, 주유, 차량유지 등',5,5],['medical','의료비','병원, 약국, 의료기기 등',4,4],['telecom','통신비','핸드폰 할부금, TV/인터넷 등',1,1],['insur','보험료','실손, 암보험 등',3,3],['edu','교육비','학원, 교재, 강의, 도서 등',1,1],['event','경조사','부모님용돈 포함',6,6]];
+const ids=DEF.map(d=>d[0]);
+const mk=a=>Object.fromEntries(ids.map((id,i)=>[id,a[i]]));
+function seed(){return{v:1,at:0,annual:30000000,kids:0,sday:25,year:2026,view:'2026-10',sample:true,
+  cats:DEF.map(d=>({id:d[0],name:d[1],desc:d[2],rec:d[3],ratio:d[4]})),
+  months:{'2026-09':{income:null,amt:mk([62000,151000,34000,0,48000,88000,96000,64000,100000,69000,9000,18200,61000,12000,120000]),memo:{}},
+          '2026-10':{income:null,amt:mk([62000,148000,21000,0,16500,92000,118000,27000,95000,71000,18000,18200,61000,52000,190000]),memo:{event:'친구 결혼식 2건'}}}}}
+let S=null;try{const r=localStorage.getItem(LS);if(r)S=JSON.parse(r)}catch(e){}
+if(!S||!Array.isArray(S.cats))S=seed();
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const won=n=>Math.round(n).toLocaleString('ko-KR');
+const pct=(n,d=1)=>(isFinite(n)?n:0).toFixed(d)+'%';
+const parse=v=>{const m=String(v).replace(/[,\s원]/g,'').match(/[+-]?\d+(\.\d+)?/g);return m?m.reduce((a,b)=>a+Number(b),0):0};
+const pad=n=>String(n).padStart(2,'0');
+const keyOf=(y,m)=>y+'-'+pad(m);
+const fd=d=>String(d.getFullYear()).slice(2)+'.'+(d.getMonth()+1)+'.'+d.getDate();
+function label(k){const[y,m]=k.split('-').map(Number);return fd(new Date(y,m-1,S.sday))+'~'+fd(new Date(y,m,S.sday-1))}
+function nowKey(){const t=new Date();let y=t.getFullYear(),m=t.getMonth()+1;if(t.getDate()<S.sday){m--;if(!m){m=12;y--}}return keyOf(y,m)}
+const yearKeys=()=>Array.from({length:12},(_,i)=>keyOf(S.year,i+1));
+const mon=k=>S.months[k]||(S.months[k]={income:null,amt:{},memo:{}});
+const hasData=k=>{const m=S.months[k];return!!m&&Object.values(m.amt||{}).some(v=>v>0)};
+const avg=()=>Math.round(S.annual/12);
+const incOf=k=>{const v=S.months[k]?.income;return v>0?v:avg()};
+const kidsRec=()=>S.kids>0?Math.min(S.kids*5,15):0;
+const recOf=c=>c.id==='kids'?kidsRec():c.rec;
+const savRec=()=>Math.max(50-kidsRec(),35);
+const isSum=()=>S.view==='sum';
+
+function calc(){
+  const keys=isSum()?yearKeys().filter(hasData):[S.view];
+  const income=keys.reduce((a,k)=>a+incOf(k),0);
+  const rows=S.cats.map(c=>{const actual=keys.reduce((a,k)=>a+(S.months[k]?.amt?.[c.id]||0),0);const budget=Math.round(income*c.ratio/100);return{c,actual,budget,diff:budget-actual,ar:income?actual/income*100:0}});
+  const ratioSum=S.cats.reduce((a,c)=>a+(+c.ratio||0),0),bSum=rows.reduce((a,r)=>a+r.budget,0),eSum=rows.reduce((a,r)=>a+r.actual,0);
+  return{keys,income,rows,savRatio:100-ratioSum,savBudget:income-bSum,savActual:income-eSum,eSum,rate:income?(income-eSum)/income*100:0};
+}
+
+function renderTabs(){
+  const cur=nowKey();
+  $('tabs').innerHTML=`<button class="ghost" data-yr="-1" aria-label="이전 연도">‹</button><span class="yr">${S.year}년</span><button class="ghost" data-yr="1" aria-label="다음 연도">›</button>`+
+    yearKeys().map(k=>`<button data-k="${k}" aria-current="${S.view===k}" class="${hasData(k)?'has':''}" title="${k===cur?'현재 기간':''}">${label(k)}${k===cur?' ·지금':''}</button>`).join('')+
+    `<button data-k="sum" aria-current="${isSum()}">${String(S.year).slice(2)}년 누적 집계</button>`;
+  const a=$('tabs').querySelector('[aria-current=true]');if(a)a.scrollIntoView({block:'nearest',inline:'nearest'});
+}
+
+function renderTable(){
+  const sum=isSum();
+  $('tb').innerHTML=S.cats.map(c=>{const m=sum?null:mon(S.view);const a=sum?'':(m.amt[c.id]?won(m.amt[c.id]):'');
+    return`<tr data-id="${esc(c.id)}">
+    ${c.custom?`<td class="txt"><input class="nmI" value="${esc(c.name)}" aria-label="항목명"></td><td class="txt ds"><input class="dsI" value="${esc(c.desc)}" aria-label="관련항목" style="font-weight:400"></td>`:`<td class="nm c">${esc(c.name)}</td><td class="ds c">${esc(c.desc)}</td>`}
+    <td class="n" id="rec-${esc(c.id)}">${recOf(c)}%</td><td class="c">이하</td>
+    <td class="in"><input class="pct" value="${c.ratio}" inputmode="decimal" aria-label="${esc(c.name)} 예산비율 %"></td>
+    <td class="n" id="b-${esc(c.id)}"></td>
+    ${sum?`<td class="n" id="a-${esc(c.id)}"></td>`:`<td class="in"><input class="amt" value="${a}" inputmode="numeric" placeholder="-" aria-label="${esc(c.name)} 실제금액"></td>`}
+    <td class="n" id="d-${esc(c.id)}"></td><td class="n" id="r-${esc(c.id)}"></td><td class="c" id="f-${esc(c.id)}"></td>
+    <td class="memo">${sum?'':`<input class="memoI" value="${esc(m.memo?.[c.id]||'')}" aria-label="${esc(c.name)} 특기사항">`}${c.custom?`<button class="del" data-del="${esc(c.id)}" aria-label="${esc(c.name)} 삭제">삭제</button>`:''}</td></tr>`}).join('')+
+  `<tr class="sav"><td class="c">저축</td><td class="c" style="font-size:13px">월 저축액</td><td class="n" id="recSav"></td><td class="c">이상</td><td class="n" id="sR"></td><td class="n" id="sB"></td><td class="n" id="sA"></td><td class="n" id="sD"></td><td class="big" id="sP"></td><td class="c" id="sF"></td><td></td></tr>
+  <tr class="tot"><td class="c">총 계</td><td></td><td></td><td></td><td class="n" id="tR"></td><td class="n" id="tB"></td><td class="n" id="tA"></td><td></td><td></td><td></td><td></td></tr>`;
+  $('tip').hidden=sum;
+}
+
+function update(){
+  const R=calc(),sum=isSum();
+  $('avg').textContent=won(avg());
+  for(const r of R.rows){const id=r.c.id;
+    $('b-'+id).textContent=r.budget?won(r.budget):'-';
+    if(sum)$('a-'+id).textContent=r.actual?won(r.actual):'-';
+    const d=$('d-'+id);d.textContent=r.diff?(r.diff<0?'−':'')+won(Math.abs(r.diff)):'-';d.className='n'+(r.diff<0?' neg':'');
+    $('r-'+id).textContent=pct(r.ar);
+    $('f-'+id).innerHTML=r.diff<0?'<span class="flag">예산초과!</span>':'';
+    $('rec-'+id).textContent=recOf(r.c)+'%';
+  }
+  $('recSav').textContent=savRec()+'%';
+  $('sR').textContent=pct(R.savRatio);$('sB').textContent=won(R.savBudget);$('sA').textContent=won(R.savActual);
+  $('sD').textContent=(R.savBudget-R.savActual<0?'−':'')+won(Math.abs(R.savBudget-R.savActual));
+  $('sP').textContent=pct(R.rate);
+  const hit=R.rate>=R.savRatio;$('sF').innerHTML=R.income?(hit?'<span>목표달성</span>':'<span class="flag">목표미달</span>'):'';
+  $('tR').textContent=pct(100);$('tB').textContent=won(R.income);$('tA').textContent=won(R.income);
+  $('sR').style.color=R.savRatio<savRec()?'var(--red)':'';
+  // hero
+  $('heroLabel').textContent=sum?`${S.year}년 누적 저축률 · 입력된 ${R.keys.length}개 기간`:`${label(S.view)} 저축률`;
+  $('rate').textContent=R.income?pct(R.rate):'—';
+  $('goal').textContent=R.income?`목표 ${pct(R.savRatio,0)} 이상 · ${hit?'목표달성':'목표까지 '+won(R.income*R.savRatio/100-R.savActual)+'원'}`:'입력된 기간이 없습니다';
+  $('hInc').textContent=won(R.income);$('hExp').textContent=won(R.eSum);$('hSav').textContent=won(R.savActual);
+  const br=R.rows.filter(r=>r.budget||r.actual);
+  $('bars').innerHTML=br.length?br.map(r=>{const u=r.budget?r.actual/r.budget:(r.actual?1.5:0);const over=r.actual>r.budget;
+    return`<div class="bar${over?' over':''}"><span>${esc(r.c.name)}</span><div class="trk"><i class="${over?'over':''}" style="width:${Math.min(u,1.5)/1.5*100}%"></i><em></em></div><span>${r.budget?Math.round(u*100)+'%':'예산 없음'} · ${won(r.actual)}</span></div>`}).join(''):'<p class="note">예산 항목이 없습니다.</p>';
+  // yearly list
+  $('yearly').hidden=!sum;
+  if(sum){$('yTitle').textContent=`${S.year}년 기간별 저축률`;
+    $('mlist').innerHTML=yearKeys().map(k=>{if(!hasData(k))return`<div class="bar"><span>${label(k)}</span><div class="trk"></div><span>입력 없음</span></div>`;
+      const inc=incOf(k),ex=S.cats.reduce((a,c)=>a+(S.months[k].amt[c.id]||0),0),rt=inc?(inc-ex)/inc*100:0;
+      return`<div class="bar${rt<R.savRatio?' over':''}"><span>${label(k)}</span><div class="trk"><i class="${rt<R.savRatio?'over':''}" style="width:${Math.max(0,Math.min(rt,100))}%"></i></div><span>${pct(rt)} · 저축 ${won(inc-ex)}</span></div>`}).join('');}
+  $('sampleNote').hidden=!S.sample;
+}
+
+function setup(){
+  $('annual').value=won(S.annual);$('kids').value=S.kids;$('sday').value=S.sday;
+  const sum=isSum();$('mincBox').style.opacity=sum?.4:1;$('minc').disabled=sum;
+  $('minc').value=!sum&&S.months[S.view]?.income>0?won(S.months[S.view].income):'';
+  $('minc').placeholder=won(avg());
+}
+function full(){renderTabs();setup();renderTable();update()}
+
+// persistence
+let ref=null,tmr=null,writing=false,again=false;
+const sync=t=>$('sync').textContent=t;
+function save(){S.at=Date.now();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}clearTimeout(tmr);sync('저장 중…');tmr=setTimeout(push,900)}
+async function push(){if(!ref){sync('이 브라우저에 저장됨');return}if(writing){again=true;return}writing=true;
+  try{await ref.set(JSON.parse(JSON.stringify(S)));sync('계정에 저장됨')}catch(e){sync('계정 저장 실패 · 이 브라우저에 저장됨')}
+  writing=false;if(again){again=false;push()}}
+(async()=>{try{
+  if(!window.claude||!window.claude.use){sync('이 브라우저에 저장됨');return}
+  const to=new Promise(r=>setTimeout(()=>r(null),10000));
+  const[db,u]=await Promise.race([Promise.all([claude.use('db'),claude.use('user')]),to.then(()=>[null,null])]);
+  if(!db||!u){sync('이 브라우저에 저장됨');return}
+  const id=await u.id();if(!id){sync('이 브라우저에 저장됨');return}
+  ref=db.doc('data/users/'+id+'/budget');
+  const snap=await ref.get();
+  if(snap.exists){const d=JSON.parse(JSON.stringify(snap.data()||{}));if(Array.isArray(d.cats)&&(d.at||0)>(S.at||0)){S=d;try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}full()}else if((S.at||0)>(d.at||0))push();}
+  else if(S.at)push();
+  sync('계정에 저장됨');
+}catch(e){ref=null;sync('이 브라우저에 저장됨')}})();
+
+// events
+$('tabs').addEventListener('click',e=>{const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.yr){S.year+=+b.dataset.yr;if(!isSum())S.view=keyOf(S.year,+S.view.split('-')[1]);}else S.view=b.dataset.k;
+  full();save()});
+$('annual').addEventListener('input',e=>{S.annual=parse(e.target.value);update();setup2();save()});
+const setup2=()=>{$('minc').placeholder=won(avg())};
+$('annual').addEventListener('blur',e=>e.target.value=won(S.annual));
+$('kids').addEventListener('input',e=>{S.kids=Math.max(0,Math.min(9,parseInt(e.target.value)||0));update();save()});
+$('sday').addEventListener('change',e=>{S.sday=Math.max(1,Math.min(28,parseInt(e.target.value)||25));e.target.value=S.sday;renderTabs();update();save()});
+$('minc').addEventListener('input',e=>{if(isSum())return;const v=parse(e.target.value);mon(S.view).income=v>0?v:null;update();save()});
+$('minc').addEventListener('blur',e=>{const v=S.months[S.view]?.income;e.target.value=v>0?won(v):''});
+const tb=$('tb');
+tb.addEventListener('input',e=>{const t=e.target,tr=t.closest('tr');if(!tr||!tr.dataset.id)return;const id=tr.dataset.id,c=S.cats.find(x=>x.id===id);
+  if(t.classList.contains('pct')){c.ratio=Math.max(0,parse(t.value))}
+  else if(t.classList.contains('amt')){mon(S.view).amt[id]=Math.max(0,parse(t.value));S.sample&&0}
+  else if(t.classList.contains('memoI')){mon(S.view).memo[id]=t.value}
+  else if(t.classList.contains('nmI')){c.name=t.value}
+  else if(t.classList.contains('dsI')){c.desc=t.value}
+  update();save()});
+tb.addEventListener('focusout',e=>{const t=e.target,tr=t.closest('tr');if(!tr||!tr.dataset.id)return;
+  if(t.classList.contains('amt')){const v=S.months[S.view]?.amt?.[tr.dataset.id]||0;t.value=v?won(v):'';renderTabs()}
+  if(t.classList.contains('pct')){t.value=S.cats.find(x=>x.id===tr.dataset.id).ratio}});
+tb.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('input')){const all=[...tb.querySelectorAll('input.'+e.target.classList[0])];const i=all.indexOf(e.target);(all[i+1]||e.target).focus();e.preventDefault()}});
+tb.addEventListener('click',e=>{const b=e.target.closest('[data-del]');if(!b)return;
+  if(b.dataset.armed){S.cats=S.cats.filter(c=>c.id!==b.dataset.del);renderTable();update();save()}else{b.dataset.armed=1;b.textContent='한 번 더 누르면 삭제';b.classList.add('warn')}});
+$('addCat').addEventListener('click',()=>{const id='c'+Date.now().toString(36);S.cats.push({id,name:'새 항목',desc:'',rec:0,ratio:0,custom:true});renderTable();update();save();const i=tb.querySelector(`tr[data-id="${id}"] .nmI`);if(i){i.focus();i.select()}});
+$('clearSample').addEventListener('click',()=>{S.months={};S.sample=false;S.view=nowKey();S.year=+S.view.split('-')[0];full();save()});
+const msg=t=>$('bkMsg').textContent=t;
+$('copy').addEventListener('click',()=>{const j=JSON.stringify(S);$('bk').value=j;navigator.clipboard?.writeText(j).then(()=>msg('복사했습니다.'),()=>msg('위 칸의 내용을 직접 복사하세요.'))});
+$('apply').addEventListener('click',()=>{try{const d=JSON.parse($('bk').value);if(!Array.isArray(d.cats)||typeof d.months!=='object')throw 0;S=d;full();save();msg('적용했습니다.')}catch(e){msg('형식이 올바르지 않습니다.')}});
+$('reset').addEventListener('click',e=>{const b=e.currentTarget;if(b.dataset.armed){const s=seed();s.months={};s.sample=false;s.view=nowKey();s.year=+s.view.split('-')[0];S=s;full();save();b.dataset.armed='';b.textContent='전체 초기화';msg('초기화했습니다.')}else{b.dataset.armed=1;b.textContent='정말 초기화할까요? 한 번 더 누르세요'}});
+S.sample=S.sample&&true;
+full();
+}
+</script>
+</body>
+</html>
