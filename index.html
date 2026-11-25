@@ -16,6 +16,7 @@
 :root{color-scheme:light dark;--bg:light-dark(#fff,#0b0c0c);--ink:light-dark(#111,#f1f2ef);--mute:light-dark(#62645f,#9a9d98);--line:light-dark(#e3e4df,#262927);--soft:light-dark(#f5f6f2,#141615);--edit:light-dark(#ecfbf2,#10201a);--mintbg:light-dark(#b8f5d0,#0f1c15);--mintink:light-dark(#0b0c0c,#b8f5d0);--red:light-dark(#d7301c,#ff6f59);--grn:light-dark(#1a8f50,#5fe09a);--num:'Space Grotesk','IBM Plex Sans KR',sans-serif}
 :root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
 *{box-sizing:border-box;min-width:0}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 'IBM Plex Sans KR',system-ui,sans-serif;overflow-x:clip}
 .band{padding:clamp(20px,3vw,40px) max(5vw,16px)}
 .wrap{max-width:1240px;margin:0 auto}
@@ -87,7 +88,7 @@ button.ghost{border-color:transparent}
 .duo{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;margin:14px 0 6px}
 .duo>div{border-top:2px solid currentColor;padding-top:10px}
 .duo .t{font-size:14px;font-weight:700}
-.duo .r{font:700 clamp(44px,6.5vw,76px)/1.05 var(--num);letter-spacing:-.03em;margin:6px 0}
+.duo .r{font:700 clamp(34px,4.2vw,60px)/1.05 var(--num);white-space:nowrap;letter-spacing:-.03em;margin:6px 0}
 .duo .g{font-size:14px;line-height:1.5}.duo .g b{font-family:var(--num)}
 .duo .st{display:inline-block;margin-top:6px;font-weight:700;font-size:14px;padding:2px 10px;border:1.5px solid currentColor;border-radius:999px}
 .calc{font:13px/1.5 var(--num);margin-top:10px}
@@ -114,7 +115,12 @@ td.in{background:var(--edit);padding:0}
 td.in input{width:100%;min-height:42px;border:0;background:transparent;color:var(--ink);font:500 16px var(--num);text-align:right;padding:0 10px}
 .lnk{border:0;background:transparent;font:500 15px var(--num);min-height:40px;padding:0 4px;text-decoration:underline dotted;text-underline-offset:4px;width:100%;text-align:right}
 td.memo input,td.txt input{width:100%;min-height:40px;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);font:inherit;font-size:13px;text-overflow:ellipsis}
-table.bt{table-layout:fixed;min-width:1020px}
+table.bt{table-layout:fixed;min-width:1060px}
+table.bt td{overflow:hidden}
+table.bt td.nm{white-space:normal;word-break:keep-all;line-height:1.3}
+table.bt .flag,table.bt .ok{white-space:normal;word-break:keep-all;display:block;line-height:1.35}
+table.bt td.big small{white-space:normal;word-break:keep-all;line-height:1.3}
+table.bt td.note{white-space:normal}
 table.bt th{white-space:normal;padding:10px 4px}
 td.in input.pct,td.in input.recI,td.in input#recSav{padding:0 6px}
 td.ds,td.memo{padding:4px 6px}
@@ -201,7 +207,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
   <div class="bars"><h2>항목별 예산 소진율</h2><div id="bars"></div><div class="legend">점선 = 예산 100% · 붉은 막대 = 예산초과</div></div>
 </section>
 <section class="band"><div class="wrap">
-  <div class="scroll"><table class="bt"><colgroup><col style="width:7%"><col style="width:19%"><col style="width:4.5%"><col style="width:3.5%"><col style="width:5%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:7.5%"><col style="width:6.5%"><col style="width:21.5%"></colgroup><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율<br><small style="font-weight:400">월평균소득 기준</small></th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
+  <div class="scroll"><table class="bt"><colgroup><col style="width:9.5%"><col style="width:16%"><col style="width:4.5%"><col style="width:3.5%"><col style="width:6%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:8%"><col style="width:8.5%"><col style="width:18%"></colgroup><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율<br><small style="font-weight:400">월평균소득 기준</small></th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
   <div class="tools"><button id="addCat">분류 추가·이름 변경</button><button id="recReset">권장비율 기본값으로 되돌리기</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요. 관련항목과 권장비율은 직접 고칠 수 있어요(바꾼 권장비율은 왼쪽에 초록 표시).</span></div>
 </div></section>
 <section class="band" id="yearly" hidden><div class="wrap mlist"><h2 id="yTitle"></h2><div id="mlist"></div></div></section>
