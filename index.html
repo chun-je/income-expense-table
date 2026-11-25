@@ -324,9 +324,9 @@ function update(P){
   $('sB').textContent=won(R.savBudget);$('sA').textContent=won(R.eSum);$('sA').title='실제 지출 합계';
   {const g=R.saved,el=$('sD');el.textContent=(g<0?'−':'+')+won(Math.abs(g));el.className='n'+(g<0?' neg':'');el.title=g<0?'예산보다 더 쓴 금액':'예산보다 덜 써서 더 저축한 금액'}
   $('sP').innerHTML=R.income?`${pct(R.rateAvg)}<small>실수입 기준 ${pct(R.rate)}</small>`:'-';
-  $('tM').textContent=R.income?`실수입 ${won(R.income)}원 · 실제 저축 ${won(R.savActual)}원`:'';
+  $('tM').textContent=R.income?`실수입 = 지출 ${won(R.eSum)} + 저축 ${won(R.savActual)}`:'';
   $('sF').innerHTML=R.income?badge('월평균',hitAvg)+badge('실수입',hitInc):'';
-  $('tR').textContent=pct(100);$('tB').textContent=won(R.base);$('tA').textContent=won(R.eSum);$('tA').title='실제 지출 합계';
+  $('tR').textContent=pct(100);$('tB').textContent=won(R.base);$('tA').textContent=won(R.income);$('tA').title='실수입 = 실제 지출 + 실제 저축';
   $('heroLabel').textContent=sum?`${S.year}년 누적 저축률 · 기록된 ${R.keys.length}개 기간`:`${label(S.view)} 저축률`;
   $('rate').textContent=R.income?pct(R.rate):'—';
   {const gap=R.income-R.base;
