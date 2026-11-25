@@ -113,7 +113,11 @@ td.ds{font-size:13px;color:var(--mute)}
 td.in{background:var(--edit);padding:0}
 td.in input{width:100%;min-height:42px;border:0;background:transparent;color:var(--ink);font:500 16px var(--num);text-align:right;padding:0 10px}
 .lnk{border:0;background:transparent;font:500 15px var(--num);min-height:40px;padding:0 4px;text-decoration:underline dotted;text-underline-offset:4px;width:100%;text-align:right}
-td.memo input,td.txt input{width:100%;min-height:40px;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);font:inherit;font-size:14px}
+td.memo input,td.txt input{width:100%;min-height:40px;border:0;border-bottom:1px dashed var(--line);background:transparent;color:var(--ink);font:inherit;font-size:13px;text-overflow:ellipsis}
+table.bt{table-layout:fixed;min-width:1020px}
+table.bt th{white-space:normal;padding:10px 4px}
+td.in input.pct,td.in input.recI,td.in input#recSav{padding:0 6px}
+td.ds,td.memo{padding:4px 6px}
 td.txt input{font-weight:700}
 .neg{color:var(--red)}
 .flag{color:var(--red);font-weight:700;font-size:13px;white-space:nowrap}
@@ -190,7 +194,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
   <div class="bars"><h2>항목별 예산 소진율</h2><div id="bars"></div><div class="legend">점선 = 예산 100% · 붉은 막대 = 예산초과</div></div>
 </section>
 <section class="band"><div class="wrap">
-  <div class="scroll"><table><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율<br><small style="font-weight:400">월평균소득 기준</small></th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
+  <div class="scroll"><table class="bt"><colgroup><col style="width:7%"><col style="width:19%"><col style="width:4.5%"><col style="width:3.5%"><col style="width:5%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:8.5%"><col style="width:7.5%"><col style="width:6.5%"><col style="width:21.5%"></colgroup><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율<br><small style="font-weight:400">월평균소득 기준</small></th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
   <div class="tools"><button id="addCat">분류 추가·이름 변경</button><button id="recReset">권장비율 기본값으로 되돌리기</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요. 관련항목과 권장비율은 직접 고칠 수 있어요(바꾼 권장비율은 왼쪽에 초록 표시).</span></div>
 </div></section>
 <section class="band" id="yearly" hidden><div class="wrap mlist"><h2 id="yTitle"></h2><div id="mlist"></div></div></section>
@@ -327,12 +331,12 @@ function resetForm(keepCat){F.edit=null;F.armed=false;$('fAmt').value='';$('fMem
 function renderTable(){
   $('tb').innerHTML=S.cats.map(c=>{const sum=isSum(),m=sum?null:mon(S.view),id=esc(c.id);
     return`<tr data-id="${id}">
-    <td class="nm c">${esc(c.name)}</td><td class="txt ds"><input class="dsI" value="${esc(c.desc)}" placeholder="관련항목 입력" aria-label="${esc(c.name)} 관련항목" style="font-weight:400"></td>
+    <td class="nm c">${esc(c.name)}</td><td class="txt ds"><input class="dsI" value="${esc(c.desc)}" title="${esc(c.desc)}" placeholder="관련항목 입력" aria-label="${esc(c.name)} 관련항목" style="font-weight:400"></td>
     <td class="in rec"><input class="recI" id="rec-${id}" inputmode="decimal" aria-label="${esc(c.name)} 권장비율 %"></td><td class="c">이하</td>
     <td class="in"><input class="pct" value="${c.ratio}" inputmode="decimal" aria-label="${esc(c.name)} 예산비율 %"></td>
     <td class="n" id="b-${id}"></td><td class="n"><button class="lnk" data-go="${id}" id="a-${id}" title="가계부에서 보기"></button></td>
     <td class="n" id="d-${id}"></td><td class="n" id="r-${id}"></td><td class="c" id="f-${id}"></td>
-    <td class="memo">${sum?'':`<input class="memoI" value="${esc(m.memo?.[c.id]||'')}" aria-label="${esc(c.name)} 특기사항">`}</td></tr>`}).join('')+
+    <td class="memo">${sum?'':`<input class="memoI" value="${esc(m.memo?.[c.id]||'')}" title="${esc(m.memo?.[c.id]||'')}" aria-label="${esc(c.name)} 특기사항">`}</td></tr>`}).join('')+
   `<tr class="sav"><td class="c">저축</td><td class="c" style="font-size:13px">월 저축액</td><td class="in rec"><input id="recSav" inputmode="decimal" aria-label="저축 권장비율 %"></td><td class="c">이상</td><td class="n" id="sR"></td><td class="n" id="sB"></td><td class="n" id="sA"></td><td class="n" id="sD"></td><td class="big" id="sP"></td><td class="c" id="sF"></td><td></td></tr>
   <tr class="tot"><td class="c">총 계</td><td></td><td></td><td></td><td class="n" id="tR"></td><td class="n" id="tB"></td><td class="n" id="tA"></td><td></td><td></td><td></td><td class="note" id="tM"></td></tr>`;
 }
