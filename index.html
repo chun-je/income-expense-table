@@ -177,7 +177,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
     <label for="fAmt" class="lab">금액 (원)</label>
     <input id="fAmt" class="amtIn" inputmode="numeric" placeholder="0">
     <div id="catBox"><div class="lrow"><span class="lab">분류</span><button type="button" class="mini" id="catEdit" aria-expanded="false">분류 편집</button></div><div class="chips" id="chips"></div>
-    <div class="catPanel" id="catPanel" hidden><p class="lab">이름을 고치면 소득지출대비표의 구분에도 바로 반영돼요. 묶음을 '저축'으로 두면 지출이 아닌 저축으로 집계돼요(대출 원금, 적금 이체 등).</p><div id="catRows"></div><div class="fbtn"><button type="button" id="catAdd">+ 분류 추가</button><button type="button" id="catDone">완료</button></div><p class="fmsg" id="catMsg" aria-live="polite"></p></div></div>
+    <div class="catPanel" id="catPanel" hidden><p class="lab">이름을 고치면 소득지출대비표의 구분에도 바로 반영돼요. 묶음을 '저축'으로 두면 지출이 아닌 저축으로 집계돼요(대출 원금상환 등). 청약·적금처럼 내 계좌로 옮기는 돈은 [이체]로 기록하세요.</p><div id="catRows"></div><div class="fbtn"><button type="button" id="catAdd">+ 분류 추가</button><button type="button" id="catDone">완료</button></div><p class="fmsg" id="catMsg" aria-live="polite"></p></div></div>
     <div class="two" id="trBox" hidden><div><label for="fFrom" class="lab">출금</label><select id="fFrom"></select></div><div><label for="fTo" class="lab">입금</label><select id="fTo"></select></div></div>
     <div class="two"><div><label for="fDate" class="lab">날짜</label><input id="fDate" type="date"></div>
       <div id="payBox"><label for="fPay" class="lab">결제수단</label><select id="fPay"></select></div></div>
