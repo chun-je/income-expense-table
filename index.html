@@ -108,6 +108,10 @@ td.txt input{font-weight:700}
 tr.sav td{border-top:2px solid var(--ink);background:var(--mintbg);color:var(--mintink);font-weight:700}
 tr.sav td.big{font:700 22px var(--num);text-align:right}
 tr.tot td{background:var(--soft);font-weight:700}
+td.rec{background:var(--soft)}td.rec input{color:var(--mute);font-weight:400}
+td.rec.mod{box-shadow:inset 3px 0 0 #2fbf71}td.rec.mod input{color:var(--ink);font-weight:700}
+tr.sav td.rec input{color:inherit}
+button:disabled{opacity:.45;cursor:default}
 .lrow{display:flex;justify-content:space-between;align-items:center}
 .form .mini{min-height:36px;padding:0 12px;font-size:13px;border-radius:999px}
 .catPanel{border:1px solid currentColor;border-radius:10px;padding:12px}
@@ -175,7 +179,7 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
 </section>
 <section class="band"><div class="wrap">
   <div class="scroll"><table><thead><tr><th>구분</th><th>관련항목</th><th colspan="2">권장비율</th><th>예산비율</th><th>예산금액<br><small style="font-weight:400">월평균소득 기준</small></th><th>실제금액</th><th>차액</th><th>실제비율<br><small style="font-weight:400">월평균소득 기준</small></th><th></th><th>특기사항</th></tr></thead><tbody id="tb"></tbody></table></div>
-  <div class="tools"><button id="addCat">분류 추가·이름 변경</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요. 관련항목은 직접 고칠 수 있어요.</span></div>
+  <div class="tools"><button id="addCat">분류 추가·이름 변경</button><button id="recReset">권장비율 기본값으로 되돌리기</button><span class="note" id="tip">실제금액은 가계부 기록이 자동으로 합산됩니다. 금액을 누르면 해당 기록을 볼 수 있어요. 관련항목과 권장비율은 직접 고칠 수 있어요(바꾼 권장비율은 왼쪽에 초록 표시).</span></div>
 </div></section>
 <section class="band" id="yearly" hidden><div class="wrap mlist"><h2 id="yTitle"></h2><div id="mlist"></div></div></section>
 </div>
@@ -233,8 +237,12 @@ const avg=()=>Math.round(S.annual/12);
 const ledgerInc=(k,P)=>(P[k]||[]).filter(e=>e.type==='in').reduce((a,e)=>a+e.amt,0);
 const incOf=(k,P)=>{const li=ledgerInc(k,P);if(li>0)return li;const v=S.months[k]?.income;return v>0?v:avg()};
 const kidsRec=()=>S.kids>0?Math.min(S.kids*5,15):0;
-const recOf=c=>c.id==='kids'?kidsRec():c.rec;
-const savRec=()=>Math.max(50-kidsRec(),35);
+const DEFREC=Object.fromEntries(DEF.map(d=>[d[0],d[3]]));
+const recDef=c=>c.id==='kids'?kidsRec():(DEFREC[c.id]??0);           // 기본 권장비율
+const recOf=c=>c.recUser!=null?c.recUser:recDef(c);                   // 사용자가 바꾼 값 우선
+const savRecDef=()=>Math.max(50-kidsRec(),35);
+const savRec=()=>S.savRecUser!=null?S.savRecUser:savRecDef();
+const recModified=()=>S.savRecUser!=null||S.cats.some(c=>c.recUser!=null);
 const isSum=()=>S.view==='sum';
 const viewKeys=P=>isSum()?yearKeys().filter(k=>hasData(k,P)):[S.view];
 const catName=e=>e.type==='in'?e.cat:(S.cats.find(c=>c.id===e.cat)?.name||'미분류');
@@ -308,19 +316,19 @@ function renderTable(){
   $('tb').innerHTML=S.cats.map(c=>{const sum=isSum(),m=sum?null:mon(S.view),id=esc(c.id);
     return`<tr data-id="${id}">
     <td class="nm c">${esc(c.name)}</td><td class="txt ds"><input class="dsI" value="${esc(c.desc)}" placeholder="관련항목 입력" aria-label="${esc(c.name)} 관련항목" style="font-weight:400"></td>
-    <td class="n" id="rec-${id}"></td><td class="c">이하</td>
+    <td class="in rec"><input class="recI" id="rec-${id}" inputmode="decimal" aria-label="${esc(c.name)} 권장비율 %"></td><td class="c">이하</td>
     <td class="in"><input class="pct" value="${c.ratio}" inputmode="decimal" aria-label="${esc(c.name)} 예산비율 %"></td>
     <td class="n" id="b-${id}"></td><td class="n"><button class="lnk" data-go="${id}" id="a-${id}" title="가계부에서 보기"></button></td>
     <td class="n" id="d-${id}"></td><td class="n" id="r-${id}"></td><td class="c" id="f-${id}"></td>
     <td class="memo">${sum?'':`<input class="memoI" value="${esc(m.memo?.[c.id]||'')}" aria-label="${esc(c.name)} 특기사항">`}</td></tr>`}).join('')+
-  `<tr class="sav"><td class="c">저축</td><td class="c" style="font-size:13px">월 저축액</td><td class="n" id="recSav"></td><td class="c">이상</td><td class="n" id="sR"></td><td class="n" id="sB"></td><td class="n" id="sA"></td><td class="n" id="sD"></td><td class="big" id="sP"></td><td class="c" id="sF"></td><td></td></tr>
+  `<tr class="sav"><td class="c">저축</td><td class="c" style="font-size:13px">월 저축액</td><td class="in rec"><input id="recSav" inputmode="decimal" aria-label="저축 권장비율 %"></td><td class="c">이상</td><td class="n" id="sR"></td><td class="n" id="sB"></td><td class="n" id="sA"></td><td class="n" id="sD"></td><td class="big" id="sP"></td><td class="c" id="sF"></td><td></td></tr>
   <tr class="tot"><td class="c">총 계</td><td></td><td></td><td></td><td class="n" id="tR"></td><td class="n" id="tB"></td><td class="n" id="tA"></td><td></td><td></td><td></td><td class="note" id="tM"></td></tr>`;
 }
 function update(P){
   const R=calc(P),sum=isSum();
   $('avg').textContent=won(avg());
   for(const r of R.rows){const id=r.c.id;
-    $('rec-'+id).textContent=recOf(r.c)+'%';
+    {const ri=$('rec-'+id);if(document.activeElement!==ri)ri.value=recOf(r.c);ri.parentElement.classList.toggle('mod',r.c.recUser!=null);ri.title=r.c.recUser!=null?`기본값 ${recDef(r.c)}%에서 변경됨`:'기본 권장비율'}
     $('b-'+id).textContent=r.budget?won(r.budget):'-';
     $('a-'+id).textContent=r.actual?won(r.actual):'-';
     const d=$('d-'+id);d.textContent=r.diff?(r.diff<0?'−':'')+won(Math.abs(r.diff)):'-';d.className='n'+(r.diff<0?' neg':'');
@@ -329,7 +337,8 @@ function update(P){
   }
   const hitInc=R.rate>=R.savRatio,hitAvg=R.rateAvg>=R.savRatio;
   const badge=(t,h)=>`<div class="${h?'ok':'flag'}">${t} ${h?'목표달성':'목표미달'}</div>`;
-  $('recSav').textContent=savRec()+'%';
+  {const ri=$('recSav');if(document.activeElement!==ri)ri.value=savRec();ri.parentElement.classList.toggle('mod',S.savRecUser!=null);ri.title=S.savRecUser!=null?`기본값 ${savRecDef()}%에서 변경됨`:'기본 권장비율'}
+  $('recReset').disabled=!recModified();
   $('sR').textContent=pct(R.savRatio);$('sR').style.color=R.savRatio<savRec()?'var(--red)':'';
   $('sB').textContent=won(R.savBudget);$('sA').textContent=won(R.eSum);$('sA').title='실제 지출 합계';
   {const g=R.saved,el=$('sD');el.textContent=(g<0?'−':'+')+won(Math.abs(g));el.className='n'+(g<0?' neg':'');el.title=g<0?'예산보다 더 쓴 금액':'예산보다 덜 써서 더 저축한 금액'}
@@ -441,18 +450,24 @@ $('kids').addEventListener('input',e=>{S.kids=Math.max(0,Math.min(9,parseInt(e.t
 $('sday').addEventListener('change',e=>{S.sday=Math.max(1,Math.min(28,parseInt(e.target.value)||25));e.target.value=S.sday;if(!isSum())S.view=nowKey();full();save()});
 $('minc').addEventListener('input',e=>{if(isSum())return;const v=parse(e.target.value);mon(S.view).income=v>0?v:null;const P=idx();update(P);renderLedger(P);save()});
 const tb=$('tb');
-tb.addEventListener('input',e=>{const t=e.target,tr=t.closest('tr');if(!tr||!tr.dataset.id)return;const id=tr.dataset.id,c=S.cats.find(x=>x.id===id);
-  if(t.classList.contains('pct'))c.ratio=Math.max(0,parse(t.value));
+const recVal=v=>String(v).trim()===''?null:Math.max(0,Math.min(100,parse(v)));
+tb.addEventListener('input',e=>{const t=e.target;
+  if(t.id==='recSav'){S.savRecUser=recVal(t.value);update(idx());save();return}
+  const tr=t.closest('tr');if(!tr||!tr.dataset.id)return;const id=tr.dataset.id,c=S.cats.find(x=>x.id===id);
+  if(t.classList.contains('recI'))c.recUser=recVal(t.value);
+  else if(t.classList.contains('pct'))c.ratio=Math.max(0,parse(t.value));
   else if(t.classList.contains('memoI'))mon(S.view).memo[id]=t.value;
   else if(t.classList.contains('dsI'))c.desc=t.value;
   const P=idx();update(P);renderLedger(P);save()});
-tb.addEventListener('focusout',e=>{const t=e.target,tr=t.closest('tr');if(tr&&tr.dataset.id&&t.classList.contains('pct'))t.value=S.cats.find(x=>x.id===tr.dataset.id).ratio});
+tb.addEventListener('focusout',e=>{const t=e.target,tr=t.closest('tr');
+  if(t.id==='recSav'||t.classList.contains('recI')){update(idx());return}if(tr&&tr.dataset.id&&t.classList.contains('pct'))t.value=S.cats.find(x=>x.id===tr.dataset.id).ratio});
 tb.addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.matches('input')){const all=[...tb.querySelectorAll('input.'+e.target.classList[0])];(all[all.indexOf(e.target)+1]||e.target).focus();e.preventDefault()}});
 tb.addEventListener('click',e=>{
   const g=e.target.closest('[data-go]');if(g){filt.cat=g.dataset.go;filt.q='';$('q').value='';location.hash='ledger'}});
 
 
 
+$('recReset').addEventListener('click',()=>{S.cats.forEach(c=>c.recUser=null);S.savRecUser=null;update(idx());save()});
 $('addCat').addEventListener('click',()=>{location.hash='ledger';F.type='out';openCats(true)});
 // backup
 const msg=t=>$('bkMsg').textContent=t;
