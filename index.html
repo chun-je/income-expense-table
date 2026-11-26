@@ -74,6 +74,10 @@ button.ghost{border-color:transparent}
 @media(max-width:600px){.arow{grid-template-columns:minmax(0,1fr) auto auto!important;padding-bottom:6px;border-bottom:1px solid var(--line)}.arow .aKind{grid-column:span 2}}
 .arow{display:grid;grid-template-columns:minmax(0,1fr) 5.5em 8em auto auto;gap:6px;margin-bottom:6px}.arow input{min-height:44px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font:inherit;font-size:16px;background:var(--bg);color:var(--ink)}.arow input.n{text-align:right;font-family:var(--num)}
 .item.tr .am{color:var(--mute)}.item.tr .tag{background:var(--ink);color:var(--bg)}
+.lock{position:fixed;inset:0;background:rgba(0,0,0,.45);display:grid;place-items:center;padding:16px;z-index:50}
+.lockBox{background:var(--bg);color:var(--ink);border-radius:14px;padding:24px;max-width:420px;width:100%;display:flex;flex-direction:column;gap:10px}
+.lockBox input{min-height:48px;border:1px solid var(--line);border-radius:8px;padding:0 12px;font:inherit;font-size:16px;background:var(--bg);color:var(--ink)}
+.primary2{background:var(--ink);color:var(--bg);font-weight:700;min-height:48px}
 .lsum{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:6px}
 .lsum span{font-size:13px;color:var(--mute);display:block}.lsum b{font:700 clamp(18px,2.4vw,24px) var(--num);white-space:nowrap}
 .usage{height:10px;background:var(--soft);border-radius:3px;margin:8px 0 4px;overflow:hidden}.usage i{display:block;height:100%;background:var(--ink)}.usage i.over{background:var(--red)}
@@ -238,10 +242,19 @@ textarea{width:100%;min-height:120px;font:13px/1.4 ui-monospace,monospace;backgr
   <details><summary>백업 · 복원 · 초기화</summary>
     <p class="note">입력한 데이터는 자동 저장됩니다(저장 위치는 오른쪽 위 표시 참고). 다른 기기로 옮기거나 따로 보관하려면 복사해 두었다가 붙여넣어 복원하세요.</p>
     <textarea id="bk" aria-label="백업 데이터"></textarea>
-    <div class="tools"><button id="copy">현재 데이터 복사</button><button id="apply">붙여넣은 데이터 적용</button><button class="warn" id="reset">전체 초기화</button><span class="note" id="bkMsg"></span></div>
+    <div class="tools"><button id="copy">현재 데이터 복사</button><button id="apply">붙여넣은 데이터 적용</button><button class="warn" id="reset">전체 초기화</button><button id="unlink" hidden>이 기기 공유 연결 해제</button><span class="note" id="bkMsg"></span></div>
   </details>
 </div></section>
 
+<div class="lock" id="lock" hidden><form class="lockBox" id="lockForm" autocomplete="on">
+  <h2>기기 간 공유 연결</h2>
+  <p class="note">Vercel에 설정한 비밀번호(APP_PASSWORD)를 입력하세요. 이 기기에 기억되고, 다른 기기와 같은 데이터를 보게 돼요.</p>
+  <input type="text" name="username" value="가계부" autocomplete="username" hidden>
+  <input id="lockPw" type="password" autocomplete="current-password" aria-label="비밀번호" placeholder="비밀번호">
+  <button class="primary2" type="submit">연결</button>
+  <p class="note warn" id="lockMsg" aria-live="polite"></p>
+  <button type="button" class="ghost" id="lockSkip">연결하지 않고 이 기기에서만 쓰기</button>
+</form></div>
 <script>
 {
 const LS='income-expense-v1';
@@ -521,7 +534,49 @@ function refresh(){const P=idx();renderTabs(P);update(P);renderLedger(P)}
 /* ---------- persistence ---------- */
 let ref=null,tmr=null,writing=false,again=false;
 const sync=t=>$('sync').textContent=t;
-function save(){S.at=Date.now();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}clearTimeout(tmr);sync('저장 중…');tmr=setTimeout(push,900)}
+function save(){S.at=Date.now();try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}clearTimeout(tmr);sync('저장 중…');
+  if(SY.on){tmr=setTimeout(syncPush,800);return}tmr=setTimeout(push,900)}
+function tomb(ids){S.deleted=[...new Set([...(S.deleted||[]),...ids])].slice(-5000)}
+/* ---------- Vercel 동기화: /api/data 가 있으면 서버에 저장해 기기 간 공유 ---------- */
+const SY={on:false,key:'',at:0,busy:false,again:false,timer:null};
+const KEYLS='income-expense-key';
+function mergeState(a,b){ // a: 이 기기, b: 서버
+  if(!b)return a;if(!a||!(a.at>0))return b;
+  const del=new Set([...(a.deleted||[]),...(b.deleted||[])]),m=new Map();
+  for(const e of[...(a.entries||[]),...(b.entries||[])]){if(del.has(e.id))continue;const o=m.get(e.id);if(!o||(e.mt||e.ts||0)>(o.mt||o.ts||0))m.set(e.id,e)}
+  const base=(b.at||0)>(a.at||0)?b:a;
+  return{...base,entries:[...m.values()],deleted:[...del].slice(-5000),at:Math.max(a.at||0,b.at||0)};
+}
+async function api(method,body){return fetch('/api/data',{method,cache:'no-store',headers:{'Content-Type':'application/json','x-app-key':SY.key},body:body?JSON.stringify(body):undefined})}
+function applyRemote(d){const editing=F.edit;S=migrate(JSON.parse(JSON.stringify(d)));try{localStorage.setItem(LS,JSON.stringify(S))}catch(e){}
+  if(!isSum())S.year=+S.view.split('-')[0];full();if(editing&&!S.entries.some(e=>e.id===editing))resetForm(true)}
+async function syncPull(first){
+  if(!SY.on||SY.busy)return;const ae=document.activeElement;if(!first&&ae&&ae!==document.body&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName))return;
+  try{const r=await api('GET');if(r.status===401){lockShow('비밀번호가 맞지 않아요. 다시 입력해 주세요.');return}if(!r.ok)throw 0;
+    const j=await r.json();if(!j.data){SY.at=0;await syncPush();return}
+    if(j.at===SY.at&&!first){sync('기기 간 공유 중 · 최신');return}
+    const localNewer=(S.at||0)>j.at,merged=mergeState(S,j.data);SY.at=j.at;const changed=localNewer||merged.entries.length!==(j.data.entries||[]).length||(merged.deleted||[]).length!==(j.data.deleted||[]).length;
+    applyRemote(merged);if(changed)await syncPush();else sync('기기 간 공유 중 · 최신');
+  }catch(e){sync('서버 연결 안 됨 · 이 기기에 저장됨')}}
+async function syncPush(){
+  if(!SY.on)return;if(SY.busy){SY.again=true;return}SY.busy=true;
+  try{for(let i=0;i<3;i++){const r=await api('PUT',{data:S,baseAt:SY.at});
+      if(r.ok){SY.at=(await r.json()).at;sync('서버에 저장됨 · 기기 간 공유 중');break}
+      if(r.status===409){const j=await r.json();SY.at=j.at;if(j.data)applyRemote(mergeState(S,j.data));continue}
+      if(r.status===401){lockShow('비밀번호가 바뀌었어요. 다시 입력해 주세요.');break}
+      throw 0}
+  }catch(e){sync('서버 저장 실패 · 이 기기에 저장됨')}
+  SY.busy=false;if(SY.again){SY.again=false;syncPush()}}
+function lockShow(m){$('lock').hidden=false;$('lockMsg').textContent=m||'';setTimeout(()=>$('lockPw').focus(),50)}
+async function syncStart(key){SY.key=key;SY.on=true;try{localStorage.setItem(KEYLS,key)}catch(e){}$('unlink').hidden=false;sync('서버와 맞추는 중…');await syncPull(true);
+  if(!SY.timer){SY.timer=setInterval(()=>{if(document.visibilityState==='visible')syncPull()},60000);document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')syncPull()})}}
+(async()=>{if(!/^https?:$/.test(location.protocol))return;
+  try{const r=await fetch('/api/data?ping=1',{cache:'no-store'});if(!r.ok||!(r.headers.get('content-type')||'').includes('json'))return;
+    const j=await r.json();if(j.app!=='income-expense')return;
+    if(!j.configured){sync('서버 설정 필요(환경 변수) · 이 기기에 저장됨');return}
+    let k='';try{k=localStorage.getItem(KEYLS)||''}catch(e){}
+    if(k)syncStart(k);else lockShow();
+  }catch(e){}})();
 async function push(){if(!ref){sync('이 브라우저에 저장됨');return}if(writing){again=true;return}writing=true;
   try{await ref.set(JSON.parse(JSON.stringify(S)));sync('계정에 저장됨')}catch(e){sync('계정 저장 실패 · 이 브라우저에 저장됨')}
   writing=false;if(again){again=false;push()}}
@@ -571,15 +626,15 @@ $('form').addEventListener('submit',e=>{e.preventDefault();
   if(F.type==='tr'){const from=$('fFrom').value,to=$('fTo').value;if(from===to){$('fMsg').textContent='출금과 입금 계좌가 같아요.';return}
     data={date,type:'tr',cat:'',from,to,amt,memo:$('fMemo').value.trim(),pay:'',acc:null}}
   else{const a=$('fAcc').value;data={date,type:F.type,cat:F.cat,amt,memo:$('fMemo').value.trim(),pay:F.type==='in'?'':$('fPay').value,acc:a===mainId()?null:a,from:null,to:null}}
-  if(F.edit){const x=S.entries.find(x=>x.id===F.edit);if(x){Object.assign(x,data);delete x.sample}$('fMsg').textContent='수정했습니다.'}
-  else{S.entries.push({id:uid(),ts:Date.now(),...data});$('fMsg').textContent=data.type==='tr'?`${accName(data.from)} → ${accName(data.to)} ${won(amt)}원 이체를 기록했어요.`:`${catName(data)} ${won(amt)}원을 ${label(periodOf(date))} 기간에 기록했어요.`}
+  if(F.edit){const x=S.entries.find(x=>x.id===F.edit);if(x){Object.assign(x,data,{mt:Date.now()});delete x.sample}$('fMsg').textContent='수정했습니다.'}
+  else{S.entries.push({id:uid(),ts:Date.now(),mt:Date.now(),...data});$('fMsg').textContent=data.type==='tr'?`${accName(data.from)} → ${accName(data.to)} ${won(amt)}원 이체를 기록했어요.`:`${catName(data)} ${won(amt)}원을 ${label(periodOf(date))} 기간에 기록했어요.`}
   const k=periodOf(date);if(!isSum()&&k!==S.view){S.view=k;S.year=+k.split('-')[0]}
   F.edit=null;F.armed=false;$('fAmt').value='';$('fMemo').value='';
   full();save();$('fAmt').focus();
 });
 $('fCancel').onclick=()=>{resetForm(true);refresh();$('fMsg').textContent=''};
 $('fDel').onclick=()=>{if(!F.armed){F.armed=true;renderForm();return}
-  S.entries=S.entries.filter(x=>x.id!==F.edit);$('fMsg').textContent='삭제했습니다.';resetForm(true);refresh();save()};
+  tomb([F.edit]);S.entries=S.entries.filter(x=>x.id!==F.edit);$('fMsg').textContent='삭제했습니다.';resetForm(true);refresh();save()};
 $('list').addEventListener('click',e=>{const b=e.target.closest('[data-e]');if(!b)return;const x=S.entries.find(x=>x.id===b.dataset.e);if(!x)return;
   F.edit=x.id;F.armed=false;F.type=x.type;F.cat=x.cat;$('fAmt').value=won(x.amt);$('fDate').value=x.date;$('fMemo').value=x.memo||'';$('fPay').value=x.pay||'';if($('fPay').selectedIndex<0)$('fPay').value='';$('fAcc').value=accOf(x);if(x.type==='tr'){$('fFrom').value=x.from||mainId();$('fTo').value=x.to||mainId()}
   $('fMsg').textContent='기록을 고친 뒤 [수정 저장]을 누르세요.';refresh();if(matchMedia('(max-width:760px)').matches)$('form').scrollIntoView({behavior:'smooth'})});
@@ -602,7 +657,7 @@ $('accRows').addEventListener('click',e=>{const b=e.target.closest('.aDel');if(!
   S.accounts=S.accounts.filter(a=>a.id!==id);renderAccs();full();save()});
 $('accAdd').addEventListener('click',()=>{const id='a'+uid();S.accounts.push({id,name:'새 계좌',kind:'save',start:0});renderAccs();full();save();const i=$('accRows').querySelector(`[data-id="${id}"] .aName`);if(i){i.focus();i.select()}});
 $('migOk').addEventListener('click',()=>{delete S.migNote;renderLedger(idx());save()});
-$('clearSample').addEventListener('click',()=>{S.entries=S.entries.filter(e=>!e.sample);S.sample=false;resetForm(true);full();save()});
+$('clearSample').addEventListener('click',()=>{tomb(S.entries.filter(e=>e.sample).map(e=>e.id));S.entries=S.entries.filter(e=>!e.sample);S.sample=false;resetForm(true);full();save()});
 // table
 $('annual').addEventListener('input',e=>{S.annual=parse(e.target.value);refresh();save()});
 $('annual').addEventListener('blur',e=>e.target.value=won(S.annual));
@@ -633,9 +688,14 @@ $('recReset').addEventListener('click',()=>{S.cats.forEach(c=>c.recUser=null);S.
 $('addCat').addEventListener('click',()=>{location.hash='ledger';F.type='out';openCats(true)});
 // backup
 const msg=t=>$('bkMsg').textContent=t;
+$('lockForm').addEventListener('submit',async e=>{e.preventDefault();const k=$('lockPw').value;if(!k)return;$('lockMsg').textContent='확인 중…';
+  SY.key=k;const r=await api('GET').catch(()=>null);if(!r||r.status===401){$('lockMsg').textContent='비밀번호가 맞지 않아요.';return}
+  $('lock').hidden=true;$('lockPw').value='';syncStart(k)});
+$('lockSkip').addEventListener('click',()=>{$('lock').hidden=true;sync('이 기기에만 저장됨 · 공유 연결 안 함')});
+$('unlink').addEventListener('click',()=>{SY.on=false;SY.key='';try{localStorage.removeItem(KEYLS)}catch(e){}$('unlink').hidden=true;sync('공유 연결 해제됨 · 이 기기에만 저장됨');msg('이 기기의 공유 연결을 해제했어요. 서버 데이터는 그대로예요.')});
 $('copy').addEventListener('click',()=>{const j=JSON.stringify(S);$('bk').value=j;try{navigator.clipboard.writeText(j).then(()=>msg('복사했습니다.'),()=>msg('위 칸의 내용을 직접 복사하세요.'))}catch(e){msg('위 칸의 내용을 직접 복사하세요.')}});
-$('apply').addEventListener('click',()=>{try{const d=JSON.parse($('bk').value);if(!Array.isArray(d.cats)||typeof d.months!=='object')throw 0;S=migrate(d);resetForm();full();save();msg('적용했습니다.')}catch(e){msg('형식이 올바르지 않습니다.')}});
-$('reset').addEventListener('click',e=>{const b=e.currentTarget;if(b.dataset.armed){const s=seed();s.entries=[];s.sample=false;S=s;S.view=nowKey();S.year=+S.view.split('-')[0];b.dataset.armed='';b.textContent='전체 초기화';resetForm();full();save();msg('초기화했습니다.')}else{b.dataset.armed=1;b.textContent='정말 초기화할까요? 한 번 더 누르세요'}});
+$('apply').addEventListener('click',()=>{try{const d=JSON.parse($('bk').value);if(!Array.isArray(d.cats)||typeof d.months!=='object')throw 0;const nd=migrate(d),keep=new Set(nd.entries.map(e=>e.id));nd.deleted=[...new Set([...(S.deleted||[]),...(nd.deleted||[]),...S.entries.filter(e=>!keep.has(e.id)).map(e=>e.id)])];S=nd;resetForm();full();save();msg('적용했습니다.')}catch(e){msg('형식이 올바르지 않습니다.')}});
+$('reset').addEventListener('click',e=>{const b=e.currentTarget;if(b.dataset.armed){const s=seed();s.entries=[];s.sample=false;s.deleted=[...new Set([...(S.deleted||[]),...S.entries.map(e=>e.id)])];S=s;S.view=nowKey();S.year=+S.view.split('-')[0];b.dataset.armed='';b.textContent='전체 초기화';resetForm();full();save();msg('초기화했습니다.')}else{b.dataset.armed=1;b.textContent='정말 초기화할까요? 한 번 더 누르세요'}});
 
 S.year=isSum()?S.year:+S.view.split('-')[0];
 full();resetForm();
