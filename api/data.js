@@ -4,8 +4,14 @@
 //   APP_PASSWORD                         (직접 추가: 앱 잠금 해제 비밀번호)
 const crypto = require('crypto');
 
-const URL_ = process.env.KV_REST_API_URL || process.env.UPSTASH_REDIS_REST_URL;
-const TOKEN = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+// Marketplace 연결 시 접두어를 붙였을 수도 있어 이름 끝부분으로도 찾음 (예: STORAGE_KV_REST_API_URL)
+const envBy = (...suffixes) => {
+  for (const sfx of suffixes) if (process.env[sfx]) return process.env[sfx];
+  for (const sfx of suffixes) { const k = Object.keys(process.env).find(n => n.endsWith(sfx) && !n.includes('READ_ONLY')); if (k) return process.env[k]; }
+  return '';
+};
+const URL_ = envBy('KV_REST_API_URL', 'UPSTASH_REDIS_REST_URL');
+const TOKEN = envBy('KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_TOKEN');
 const PASS = process.env.APP_PASSWORD;
 const KEY = 'income-expense:state';
 
@@ -32,7 +38,7 @@ module.exports = async (req, res) => {
   const configured = !!(URL_ && TOKEN && PASS);
 
   if (req.query && req.query.ping !== undefined) {
-    return res.status(200).json({ app: 'income-expense', configured });
+    return res.status(200).json({ app: 'income-expense', configured, has: { dbUrl: !!URL_, dbToken: !!TOKEN, password: !!PASS } });
   }
   if (!configured) return res.status(503).json({ error: 'not_configured' });
 

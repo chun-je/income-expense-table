@@ -573,7 +573,7 @@ async function syncStart(key){SY.key=key;SY.on=true;try{localStorage.setItem(KEY
 (async()=>{if(!/^https?:$/.test(location.protocol))return;
   try{const r=await fetch('/api/data?ping=1',{cache:'no-store'});if(!r.ok||!(r.headers.get('content-type')||'').includes('json'))return;
     const j=await r.json();if(j.app!=='income-expense')return;
-    if(!j.configured){sync('서버 설정 필요(환경 변수) · 이 기기에 저장됨');return}
+    if(!j.configured){const h=j.has||{},miss=[!h.dbUrl&&'DB 주소(KV_REST_API_URL)',!h.dbToken&&'DB 토큰(KV_REST_API_TOKEN)',!h.password&&'APP_PASSWORD'].filter(Boolean);sync('서버 설정 필요: '+(miss.join(', ')||'환경 변수')+' 없음 · 이 기기에 저장됨');return}
     let k='';try{k=localStorage.getItem(KEYLS)||''}catch(e){}
     if(k)syncStart(k);else lockShow();
   }catch(e){}})();
